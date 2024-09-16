@@ -6,7 +6,8 @@
 #include <array>
 #include <type_traits>
 #include <string>
-#include <pair>
+#include <utility>
+#include <optional>
 
 struct in_addr;
 struct in6_addr;
@@ -102,5 +103,5 @@ namespace AudioEngine {
      * This cannot be used for QoS guarantees on Windows because they just up and outright disabled IP_TOS in favour of their GQOS API. You will need to write platform specific windowos code to support QOS. 
      * TODO: implement this
      **/
-    std::optional<end_point> recv_msg(socket_t sock, )
+    std::optional<end_point> recv_msg(socket_t sock);
 }

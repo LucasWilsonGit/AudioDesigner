@@ -6,6 +6,8 @@
 #include <ws2tcpip.h>
 #include <string>
 
+#pragma comment (lib, "Ws2_32.lib")
+
 //being very explicit about namespaces just to avoid any future headaches
 namespace AudioEngine {
 
@@ -94,11 +96,13 @@ namespace AudioEngine {
 
     }
 
-    AudioEngine::socket accept(AudioEngine::socket const& sock) {
+    std::pair<socket_t, end_point> accept(socket_t sock) {
         ::sockaddr out_addr;
         int out_len;
-        socket_t client_sock = ::accept(sock.platform_handle(), &out_addr, &out_len);
+        socket_t client_sock = ::accept(sock, &out_addr, &out_len);
 
         end_point peer = parse_end_point(out_addr);
+
+        return {client_sock, peer};
     }
 }
