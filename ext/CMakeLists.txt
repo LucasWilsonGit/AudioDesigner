@@ -1,0 +1,1 @@
+#This script handles the external projects
