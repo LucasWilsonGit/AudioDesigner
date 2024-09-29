@@ -33,7 +33,7 @@ if (WIN32)
     #list(APPEND EXT_PROJECTS "wepoll")
 
     FetchContent_GetProperties(wepoll)
-    if (NOT wepoll_POPULATED AND NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/wepoll")
+    if (NOT wepoll_POPULATED OR NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/wepoll")
         message("Fetching wepoll...")
         FetchContent_Populate(wepoll)
 

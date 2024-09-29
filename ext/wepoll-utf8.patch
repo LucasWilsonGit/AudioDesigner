@@ -1,9 +1,9 @@
 ﻿diff --git a/CMakeBundle.cmake b/CMakeBundle.cmake
 new file mode 100644
-index 0000000..d48d3dd
+index 0000000..d73d097
 --- /dev/null
 +++ b/CMakeBundle.cmake
-@@ -0,0 +1,260 @@
+@@ -0,0 +1,253 @@
 +#[[
 +@author:    Lucas Wilson
 +@date:      22/09/2024
@@ -70,7 +70,6 @@ index 0000000..d48d3dd
 +#outputs the found apth to `check_file_exists__out`
 +#TODO: Maybe take target as an argument, and use the target include dirs? 
 +function(check_file_exists file_name valid_paths)
-+    message(STATUS "check_file_exists ${file_name} ${valid_paths}")
 +    set(found FALSE)
 +    foreach (fpath IN LISTS valid_paths)
 +        set(file_path "${CMAKE_CURRENT_SOURCE_DIR}/${fpath}/${file_name}")
@@ -82,8 +81,6 @@ index 0000000..d48d3dd
 +    if (NOT found)
 +        message(FATAL_ERROR "File `${file_name}` could not be found in paths: ${valid_paths}.")
 +    endif()
-+
-+    message(STATUS "check_file_exists found ${file_path}")
 +
 +    #found file, write file_path to the caller scope
 +    set(check_file_exists__out "${file_path}" PARENT_SCOPE)
@@ -129,12 +126,9 @@ index 0000000..d48d3dd
 +    foreach(include_pattern IN LISTS INCLUDE_PATTERNS)
 +        #parse out header includes TODO: Improve this
 +        string(REGEX MATCHALL "${include_pattern}" found_includes "${header_contents}")
-+        message(STATUS "found includes: ${found_includes}")
 +        foreach(include IN LISTS found_includes)
 +            string(REGEX MATCH "${include_pattern}" _ "${include}")
-+            message(STATUS "Found parent header ${CMAKE_MATCH_1} in ${header_name}")
 +            if(NOT "${CMAKE_MATCH_1}" IN_LIST HEADER_BLACKLIST)
-+                message(STATUS "Processing ${CMAKE_MATCH_1}")
 +                append_header("${jumbo_file}" "${CMAKE_MATCH_1}")
 +            endif()
 +        endforeach()
@@ -151,7 +145,6 @@ index 0000000..d48d3dd
 +    file(APPEND "${jumbo_file}" "${temp_contents}")
 +
 +    set(tracked_headers "${tracked_headers};${header_name}" PARENT_SCOPE)
-+    message(STATUS "tracked_headers: ${tracked_headers};${header_name}")
 +endfunction()
 +
 +
@@ -265,16 +258,18 @@ index 0000000..d48d3dd
 +
 +endfunction()
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index dfc13b7..cc024f7 100644
+index dfc13b7..f1f58a4 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -1,166 +1,105 @@
+@@ -1,166 +1,113 @@
 -cmake_minimum_required(VERSION 3.0.0)
 +cmake_minimum_required(VERSION 3.15.0)
  project(wepoll)
  
 -include(CMakeParseArguments)
 +file(GLOB SOURCES_DOC LICENSE *.md)
++file(GLOB SOURCES src/*.c)
++file(GLOB TESTS test/*.c)
 +
 +
 +#include functions defined for bundling source and header files
@@ -420,13 +415,13 @@ index dfc13b7..cc024f7 100644
 -  ${DLL_TARGET} SHARED
 -  ${SOURCES_CONFIG_EXTERNAL_DLLEXPORT} ${SOURCES_CONFIG_INTERNAL_DEFAULT}
 -  ${SOURCES_INCLUDE} ${SOURCES_SRC}
--)
--target_include_directories(
--  ${DLL_TARGET} PUBLIC
--  config/external/dllexport config/internal/default include src
 +set(SOURCE_PATHS
 +  "src"
  )
+-target_include_directories(
+-  ${DLL_TARGET} PUBLIC
+-  config/external/dllexport config/internal/default include src
+-)
 -set_target_properties(${DLL_TARGET} PROPERTIES OUTPUT_NAME ${DLL_TARGET})
  
 -set(BUNDLE_DLL_TARGET "${LIB_NAME}-bundle.dll")
@@ -459,7 +454,6 @@ index dfc13b7..cc024f7 100644
 -set_target_properties(
 -  ${TESTING_LIB_TARGET} PROPERTIES
 -  OUTPUT_NAME "${LIB_NAME}-testing"
--)
 +#defined in CMakeBundle.cmake
 +bundle_headers("${CMAKE_CURRENT_SOURCE_DIR}/${WEPOLL_DIST_DIR}")
 +bundle_sources("${CMAKE_CURRENT_SOURCE_DIR}/${WEPOLL_DIST_DIR}")
@@ -467,6 +461,33 @@ index dfc13b7..cc024f7 100644
 +
 +target_include_directories(${WEPOLL_TARGET} PUBLIC "${WEPOLL_DIST_DIR}")
 +target_sources(${WEPOLL_TARGET} PRIVATE "${WEPOLL_DIST_DIR}/jumbo.c")
++
++
++enable_testing()
++
++add_library(WEPOLL_TEST_LIB)
++target_include_directories(WEPOLL_TEST_LIB PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/test/shared" "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_SOURCE_DIR}/src")
++target_sources(WEPOLL_TEST_LIB PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/test/shared/test-util.c" "${SOURCES}")
++set_target_properties(WEPOLL_TEST_LIB
++  PROPERTIES
++  ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
++  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
++  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+ )
++set_wepoll_export_macro( WEPOLL_TEST_LIB "${WEPOLL_CONFIGURATION}" )
++
++#wrapper for test registration which does nice cool things :)
++function(wepoll_add_test test_target test_source)
++  add_executable(${test_target})
++  target_link_libraries(${test_target} PUBLIC WEPOLL_TEST_LIB ws2_32)
++  target_sources(${test_target} PRIVATE "${test_source}")
++  set_target_properties( ${test_target}
++    PROPERTIES
++    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
++    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
++    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
++  )
++  set_wepoll_export_macro( "${test_target}" "${WEPOLL_CONFIGURATION}" )
  
 -foreach(TEST_SOURCE ${SOURCES_TEST})
 -  get_filename_component(TEST_NAME ${TEST_SOURCE} NAME_WE)
@@ -474,51 +495,29 @@ index dfc13b7..cc024f7 100644
 -  target_include_directories(
 -    ${TEST_NAME} PUBLIC
 -    config/external/static config/internal/default include src test/shared
-+
-+enable_testing()
-+
-+function(wepoll_add_test test_target test_source)
-+
-+  file(GLOB sources src/*.c)
-+  set(test_sources "${test_source}" "${CMAKE_CURRENT_SOURCE_DIR}/test/shared/test-util.c" "${sources}")
-+
-+  add_executable(${test_target})
-+  target_include_directories(${test_target} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/test/shared" "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_SOURCE_DIR}/src" )
-+  target_sources(${test_target} PRIVATE "${test_sources}")
-+  set_target_properties( ${test_target}
-+    PROPERTIES
-+    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
++  add_test(
++    NAME "ctest_${test_target}"
++    COMMAND ${test_target}
    )
 -  target_link_libraries(${TEST_NAME} ${TESTING_LIB_TARGET})
 -  set_target_properties(${TEST_NAME} PROPERTIES FOLDER Tests)
 -  list(APPEND TEST_TARGETS ${TEST_NAME})
 -  list(APPEND TEST_OUTPUTS $<TARGET_FILE:${TEST_NAME}>)
 -endforeach()
--
+ 
 -add_custom_target(
 -  test-all
 -  COMMAND node ${TOOL_RUN_TESTS} ${TEST_OUTPUTS}
 -  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 -  DEPENDS ${TOOL_RUN_TESTS} ${TEST_TARGETS}
 -)
-+
-+  set_wepoll_export_macro( "${test_target}" "${WEPOLL_CONFIGURATION}" )
-+
-+  target_link_libraries(${test_target} PUBLIC ws2_32)
-+
-+  add_test(
-+    NAME "ctest_${test_target}"
-+    COMMAND ${test_target}
-+  )
-+
 +endfunction()
 +
-+
-+
-+wepoll_add_test(test_auto_drop_on_close "test/test-auto-drop-on-close.c")
-+
++#register tests
++foreach(test_source IN LISTS TESTS)
++  get_filename_component(test_name "${test_source}" NAME_WE)
++  wepoll_add_test("${test_name}" "${test_source}")
++endforeach()
 diff --git a/include/wepoll.h b/include/wepoll.h
 index 3d743b5..832005e 100644
 --- a/include/wepoll.h
