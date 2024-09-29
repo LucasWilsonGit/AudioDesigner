@@ -18,8 +18,8 @@ FetchContent_Declare(
 )
 list(APPEND EXT_PROJECTS "miniaudio")
 
-if (WIN32)
-
+iswindows()
+if (${LASTCALL})
     #TODO: Use PATCH_COMMAND instead of my hacked together execute_process
     FetchContent_Declare(
         wepoll
@@ -38,10 +38,12 @@ if (WIN32)
         FetchContent_Populate(wepoll)
 
         #patch out the abominable wepoll build system with my own
-        execute_process(
-            COMMAND ${GIT_EXECUTABLE} apply --ignore-whitespace --verbose "${CMAKE_CURRENT_SOURCE_DIR}/wepoll-utf8.patch"
-            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/wepoll"
-        )
+        if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/wepoll/CMakeBundle.cmake")
+            execute_process(
+                COMMAND ${GIT_EXECUTABLE} apply --ignore-whitespace --verbose "${CMAKE_CURRENT_SOURCE_DIR}/wepoll-utf8.patch"
+                WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/wepoll"
+            )
+        endif()
 
         FetchContent_GetProperties(wepoll)
     endif()

@@ -2,7 +2,7 @@
 _build/**
 
 #/ext CMakeLists.txt will download any external projects necessary
-/ext/**
+ext/**
 !ext/CMakeLists.txt
 #Some of them have bad build systems so I patch in my own
 !ext/*.patch

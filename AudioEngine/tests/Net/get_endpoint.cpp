@@ -20,7 +20,7 @@ int main() {
     if (ipv4.sin_family != AF_INET) 
         return -1;
 
-    if (Net::address_ipv4(ipv4.sin_addr).display_string().find("254.123.254.123") == std::string::npos)
+    if (ipv4.sin_addr.S_un.S_addr != htonl(0xfe7bfe7b))
         return -1;
 
     if (ipv4.sin_port != htons(1234))

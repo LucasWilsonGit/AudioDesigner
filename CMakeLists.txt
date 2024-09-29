@@ -11,6 +11,7 @@ function(iswindows)
 endfunction()
 
 enable_testing()
+option(TESTING_ENABLED "Toggle all testing" ON)
 option(WEPOLL_TESTING "Enable testing for the wepoll library" ON)
 option(MINIAUDIO_TESTING "Enable testing for the miniaudio library" OFF)
 option(NET_TESTING "Enable testing for Net library" ON)
@@ -22,6 +23,26 @@ if ( CMAKE_COMPILER_IS_GNUCC )
 endif()
 
 project(AUDIODESIGNER)
+
+#wrapper for test registration which does nice cool things :)
+function(lib_add_test test_target test_source test_libs_indirect)
+  add_executable(${test_target} ${test_source})
+  set_property(TARGET ${test_target} PROPERTY CXX_STANDARD 20) #C++ 20
+  target_link_libraries(${test_target} PUBLIC "${${test_libs_indirect}}") #unpack test libs indirect into link libraries
+  set_target_properties( ${test_target}
+    PROPERTIES
+    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+  )
+  add_test(
+    NAME "ctest_${test_target}"
+    COMMAND ${test_target}
+  )
+
+  message(STATUS "Add test ${test_target} with file ${test_source}")
+
+endfunction()
 
 add_subdirectory(ext)
 add_subdirectory(AudioEngine)

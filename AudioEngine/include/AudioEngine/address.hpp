@@ -29,42 +29,40 @@ namespace Net {
         std::array<std::byte, 4> m_bytes;
 
     public:
-        explicit address_ipv4(uint32_t bytes) {
+        //tested
+        explicit address_ipv4(uint32_t bytes) {                                                         //tested
             uint8_t i = 0;
             for (uint8_t *p_bytes = reinterpret_cast<uint8_t*>(&bytes); i < 4; p_bytes++, i++) {
                 m_bytes[i] = std::byte{*p_bytes};    
             }
         }
-        explicit address_ipv4(std::array<std::byte, 4> bytes) : m_bytes(std::move(bytes)) {}
-        address_ipv4(std::string const& addr) : m_bytes(parse_ipv4(addr)) {}
-        address_ipv4(::in_addr const& addr) : m_bytes(parse_ipv4(addr)) {}
+        explicit address_ipv4(std::array<std::byte, 4> bytes) : m_bytes(std::move(bytes)) {}            //tested
+        address_ipv4(std::string const& addr) : m_bytes(parse_ipv4(addr)) {}                            //tested
+        address_ipv4(::in_addr const& addr) : m_bytes(parse_ipv4(addr)) {}                              //tested
         
-        bool is_multicast() const noexcept {
+        bool is_multicast() const noexcept {                                                            //TODO: write unit test
             uint8_t byte = std::to_integer<uint8_t>(m_bytes[0]);
             return  byte >= 224 && byte < 240;
         }
 
-        std::string display_string() const {
-            std::string result;
-            for (auto& byte : m_bytes) {
-                uint16_t num = std::to_integer<uint16_t>(byte);
-                result += (result.size() == 0 ? "" : ".") + std::to_string(num);
-            }
-            return result;
-        }
+        std::string display_string() const;                                                             //tested        (uses inet_ntop)
 
-        std::array<std::byte, 4> bytes() const noexcept {
+        std::array<std::byte, 4> bytes() const noexcept {                                               //tested
             return m_bytes;
         }
 
-        std::byte const* data() const noexcept {
+        std::byte const* data() const noexcept {                                                        //tested by bytes()
             return m_bytes.data();
+        }
+
+        uint32_t number() const noexcept {                                                              //tested
+            return *(uint32_t*)m_bytes.data();
         }
 
     protected:
         friend class end_point;
 
-        std::array<std::byte, 4> const& peek_bytes() const noexcept {
+        std::array<std::byte, 4> const& peek_bytes() const noexcept {                                   //tested by bytes()
             return m_bytes;
         }
 
@@ -86,14 +84,18 @@ namespace Net {
 
         std::string display_string() const; //defined by sockapi (I know, this is a bit weird but we need to use inet_ntop)
 
-        std::byte const* data() const noexcept {
+        std::array<std::byte, 16> bytes() const noexcept {                                              //tested
+            return m_bytes;
+        }
+
+        std::byte const* data() const noexcept {                                                        //tested by bytes()
             return m_bytes.data();
         }
 
     protected:
         friend class end_point;
 
-        std::array<std::byte, 16> const& peek_bytes() const noexcept {
+        std::array<std::byte, 16> const& peek_bytes() const noexcept {                                  //tested by bytes()
             return m_bytes;
         }
     private:

@@ -258,10 +258,10 @@ index 0000000..d73d097
 +
 +endfunction()
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index dfc13b7..f1f58a4 100644
+index dfc13b7..c56d9b4 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -1,166 +1,113 @@
+@@ -1,166 +1,114 @@
 -cmake_minimum_required(VERSION 3.0.0)
 +cmake_minimum_required(VERSION 3.15.0)
  project(wepoll)
@@ -274,8 +274,7 @@ index dfc13b7..f1f58a4 100644
 +
 +#include functions defined for bundling source and header files
 +include("${CMAKE_CURRENT_SOURCE_DIR}/CMakeBundle.cmake")
- 
--link_libraries(ws2_32)
++
 +#Configuration parameters
 +set(WEPOLL_CONFIGURATION "STATIC" CACHE STRING "wepoll build configuration")
 +option(ENABLE_TESTS "Enable or Disable building and execution of tests" ON)
@@ -289,7 +288,8 @@ index dfc13b7..f1f58a4 100644
 +  ${WEPOLL_TARGET}
 +  ${WEPOLL_CONFIGURATION}
 +)
-+
+ 
+-link_libraries(ws2_32)
 +target_link_libraries(${WEPOLL_TARGET} PUBLIC ws2_32)
  
  if(MSVC)
@@ -358,9 +358,7 @@ index dfc13b7..f1f58a4 100644
 -    DEPENDS ${TOOL_BUNDLE} ${SOURCES_CONFIG_EXTERNAL} ${SOURCES_INCLUDE}
 -  )
 -endfunction()
-+#define the WEPOLL_EXPORT to be used by the source
-+set_wepoll_export_macro( "${WEPOLL_TARGET}" "${WEPOLL_CONFIGURATION}" )
- 
+-
 -function(bundle_source)
 -  cmake_parse_arguments(BUNDLE "" "OUTPUT;EXTERNAL_CONFIG" "" ${ARGN})
 -  set(CONFIG_EXTERNAL_DIR "config/external/${BUNDLE_EXTERNAL_CONFIG}")
@@ -377,11 +375,7 @@ index dfc13b7..f1f58a4 100644
 -            ${SOURCES_INCLUDE} ${SOURCES_SRC}
 -  )
 -endfunction()
-+set(INCLUDE_PATTERNS
-+  "#include[ \t\r\n]*\"([^\"]+)\""
-+#  "#include[ \t\r\n]*<([^<>])>"      Ignore system header includes. So long as the appropriate include style is used, then we can avoid bundling system headers.
-+ )
- 
+-
 -set(BUNDLE_DIST_TARGET "dist")
 -set(BUNDLE_DIST_HEADER "${DIST_DIR}/${LIB_NAME}.h")
 -set(BUNDLE_DIST_SOURCE "${DIST_DIR}/${LIB_NAME}.c")
@@ -403,26 +397,24 @@ index dfc13b7..f1f58a4 100644
 -  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 -  DEPENDS ${SOURCES_DOC}
 -)
-+#Places to look for headers
-+set(HEADER_PATHS
-+  #src before include otherwise it starts with wepoll.h which uses win.h constants but does not include win.h (nice)
-+  "src"
-+  "include"
-+ )
++#define the WEPOLL_EXPORT to be used by the source
++set_wepoll_export_macro( "${WEPOLL_TARGET}" "${WEPOLL_CONFIGURATION}" )
  
 -set(DLL_TARGET "${LIB_NAME}.dll")
 -add_library(
 -  ${DLL_TARGET} SHARED
 -  ${SOURCES_CONFIG_EXTERNAL_DLLEXPORT} ${SOURCES_CONFIG_INTERNAL_DEFAULT}
 -  ${SOURCES_INCLUDE} ${SOURCES_SRC}
-+set(SOURCE_PATHS
-+  "src"
- )
+-)
 -target_include_directories(
 -  ${DLL_TARGET} PUBLIC
 -  config/external/dllexport config/internal/default include src
 -)
 -set_target_properties(${DLL_TARGET} PROPERTIES OUTPUT_NAME ${DLL_TARGET})
++set(INCLUDE_PATTERNS
++  "#include[ \t\r\n]*\"([^\"]+)\""
++#  "#include[ \t\r\n]*<([^<>])>"      Ignore system header includes. So long as the appropriate include style is used, then we can avoid bundling system headers.
++ )
  
 -set(BUNDLE_DLL_TARGET "${LIB_NAME}-bundle.dll")
 -set(BUNDLE_DLL_SOURCE "${GEN_DIR}/${LIB_NAME}-bundle-dll.c")
@@ -436,17 +428,22 @@ index dfc13b7..f1f58a4 100644
 -set_target_properties(
 -  ${BUNDLE_DLL_TARGET}
 -  PROPERTIES OUTPUT_NAME "${LIB_NAME}-bundle"
-+set(HEADER_BLACKLIST
-+  "config-internal.h"
-+  "config-external.h"
- )
+-)
++#Places to look for headers
++set(HEADER_PATHS
++  #src before include otherwise it starts with wepoll.h which uses win.h constants but does not include win.h (nice)
++  "src"
++  "include"
++ )
  
 -set(TESTING_LIB_TARGET "${LIB_NAME}-testing.lib")
 -add_library(
 -  ${TESTING_LIB_TARGET} STATIC
 -  ${SOURCES_CONFIG_EXTERNAL_STATIC} ${SOURCES_CONFIG_INTERNAL_DEFAULT}
 -  ${SOURCES_INCLUDE} ${SOURCES_SRC} ${SOURCES_TEST_UTIL}
--)
++set(SOURCE_PATHS
++  "src"
+ )
 -target_include_directories(
 -  ${TESTING_LIB_TARGET} PUBLIC
 -  config/external/static config/internal/default include src
@@ -454,6 +451,18 @@ index dfc13b7..f1f58a4 100644
 -set_target_properties(
 -  ${TESTING_LIB_TARGET} PROPERTIES
 -  OUTPUT_NAME "${LIB_NAME}-testing"
++
++set(HEADER_BLACKLIST
++  "config-internal.h"
++  "config-external.h"
+ )
+ 
+-foreach(TEST_SOURCE ${SOURCES_TEST})
+-  get_filename_component(TEST_NAME ${TEST_SOURCE} NAME_WE)
+-  add_executable(${TEST_NAME} ${TEST_SOURCE} ${SOURCES_TEST_LEAK_CHECK})
+-  target_include_directories(
+-    ${TEST_NAME} PUBLIC
+-    config/external/static config/internal/default include src test/shared
 +#defined in CMakeBundle.cmake
 +bundle_headers("${CMAKE_CURRENT_SOURCE_DIR}/${WEPOLL_DIST_DIR}")
 +bundle_sources("${CMAKE_CURRENT_SOURCE_DIR}/${WEPOLL_DIST_DIR}")
@@ -462,62 +471,59 @@ index dfc13b7..f1f58a4 100644
 +target_include_directories(${WEPOLL_TARGET} PUBLIC "${WEPOLL_DIST_DIR}")
 +target_sources(${WEPOLL_TARGET} PRIVATE "${WEPOLL_DIST_DIR}/jumbo.c")
 +
++if (ENABLE_TESTING AND WEPOLL_TESTING)
++  enable_testing()
 +
-+enable_testing()
-+
-+add_library(WEPOLL_TEST_LIB)
-+target_include_directories(WEPOLL_TEST_LIB PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/test/shared" "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_SOURCE_DIR}/src")
-+target_sources(WEPOLL_TEST_LIB PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/test/shared/test-util.c" "${SOURCES}")
-+set_target_properties(WEPOLL_TEST_LIB
-+  PROPERTIES
-+  ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-+  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
- )
-+set_wepoll_export_macro( WEPOLL_TEST_LIB "${WEPOLL_CONFIGURATION}" )
-+
-+#wrapper for test registration which does nice cool things :)
-+function(wepoll_add_test test_target test_source)
-+  add_executable(${test_target})
-+  target_link_libraries(${test_target} PUBLIC WEPOLL_TEST_LIB ws2_32)
-+  target_sources(${test_target} PRIVATE "${test_source}")
-+  set_target_properties( ${test_target}
++  add_library(WEPOLL_TEST_LIB)
++  target_include_directories(WEPOLL_TEST_LIB PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/test/shared" "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_SOURCE_DIR}/src")
++  target_sources(WEPOLL_TEST_LIB PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/test/shared/test-util.c" "${SOURCES}")
++  set_target_properties(WEPOLL_TEST_LIB
 +    PROPERTIES
 +    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
 +    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
 +    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
-+  )
-+  set_wepoll_export_macro( "${test_target}" "${WEPOLL_CONFIGURATION}" )
- 
--foreach(TEST_SOURCE ${SOURCES_TEST})
--  get_filename_component(TEST_NAME ${TEST_SOURCE} NAME_WE)
--  add_executable(${TEST_NAME} ${TEST_SOURCE} ${SOURCES_TEST_LEAK_CHECK})
--  target_include_directories(
--    ${TEST_NAME} PUBLIC
--    config/external/static config/internal/default include src test/shared
-+  add_test(
-+    NAME "ctest_${test_target}"
-+    COMMAND ${test_target}
    )
 -  target_link_libraries(${TEST_NAME} ${TESTING_LIB_TARGET})
 -  set_target_properties(${TEST_NAME} PROPERTIES FOLDER Tests)
 -  list(APPEND TEST_TARGETS ${TEST_NAME})
 -  list(APPEND TEST_OUTPUTS $<TARGET_FILE:${TEST_NAME}>)
 -endforeach()
- 
+-
 -add_custom_target(
 -  test-all
 -  COMMAND node ${TOOL_RUN_TESTS} ${TEST_OUTPUTS}
 -  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 -  DEPENDS ${TOOL_RUN_TESTS} ${TEST_TARGETS}
 -)
-+endfunction()
++  set_wepoll_export_macro( WEPOLL_TEST_LIB "${WEPOLL_CONFIGURATION}" )
 +
-+#register tests
-+foreach(test_source IN LISTS TESTS)
-+  get_filename_component(test_name "${test_source}" NAME_WE)
-+  wepoll_add_test("${test_name}" "${test_source}")
-+endforeach()
++  #wrapper for test registration which does nice cool things :)
++  function(wepoll_add_test test_target test_source)
++    add_executable(${test_target})
++    target_link_libraries(${test_target} PUBLIC WEPOLL_TEST_LIB ws2_32)
++    target_sources(${test_target} PRIVATE "${test_source}")
++    set_target_properties( ${test_target}
++      PROPERTIES
++      ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
++      LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
++      RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
++    )
++    set_wepoll_export_macro( "${test_target}" "${WEPOLL_CONFIGURATION}" )
++
++    add_test(
++      NAME "ctest_${test_target}"
++      COMMAND ${test_target}
++    )
++
++  endfunction()
++
++  #register tests
++  foreach(test_source IN LISTS TESTS)
++    get_filename_component(test_name "${test_source}" NAME_WE)
++    wepoll_add_test("${test_name}" "${test_source}")
++  endforeach()
++endif()
+\ No newline at end of file
 diff --git a/include/wepoll.h b/include/wepoll.h
 index 3d743b5..832005e 100644
 --- a/include/wepoll.h

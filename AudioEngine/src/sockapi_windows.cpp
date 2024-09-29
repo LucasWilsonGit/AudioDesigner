@@ -59,24 +59,28 @@ namespace Net {
     }
 
     std::array<std::byte, 4> parse_ipv4(::in_addr const& value) {
-        return to_bytes(value.S_un.S_addr);
+        return std::array<std::byte, 4> {
+            static_cast<std::byte>(value.S_un.S_un_b.s_b1), 
+            static_cast<std::byte>(value.S_un.S_un_b.s_b2), 
+            static_cast<std::byte>(value.S_un.S_un_b.s_b3), 
+            static_cast<std::byte>(value.S_un.S_un_b.s_b4)
+        };
     }
 
     std::array<std::byte, 16> parse_ipv6(std::string const& addr) {
-        std::array<std::byte, 16> buffer alignas(::in6_addr);
-        if (::inet_pton(AF_INET6, addr.c_str(), reinterpret_cast<void*>(&buffer)) != 1)
+        ::in6_addr buffer;
+        if (::inet_pton(AF_INET6, addr.c_str(), &buffer) != 1)
             throw net_error("Address " + addr + " is not a valid ipv6 address.");
 
-        return buffer;
+        return parse_ipv6(buffer);
     }
 
     std::array<std::byte, 16> parse_ipv6(::in6_addr const& value) {
         std::array<std::byte, 16> buffer;
 
         //This could be wwrong due to endianness but I am just moving across byte arrays using a larger type, so it should be fine? Unit test will confirm.
-        uint64_t* qwords = (uint64_t*)value.u.Byte;
-        (uint64_t&)(buffer.data()[0]) = qwords[0];          
-        (uint64_t&)(buffer.data()[8]) = qwords[1];
+        void* buff = (uint64_t*)value.u.Byte;
+        std::memcpy(buffer.data(), buff, 16);
 
         return buffer;
     }
@@ -92,13 +96,25 @@ namespace Net {
         memcpy(&sockaddr.u.Byte, addr.data(), 16);
         return sockaddr;
     }
-    std::string address_ipv6::display_string() const {
-        in6_addr addr = get_addr6(*this);
-        std::string buffer;
-        buffer.reserve(46);
-        ::inet_ntop(AF_INET6, &addr, buffer.data(), 46);
 
-        return buffer;
+    std::string address_ipv4::display_string() const {
+        std::array<char, 16> buffer;
+        in_addr addr = get_addr4(*this);
+        
+        if (::inet_ntop(AF_INET, &addr, buffer.data(), buffer.size()) == NULL)
+            WSAcall(-1); //force error
+
+        return buffer.data();
+    }
+
+    std::string address_ipv6::display_string() const {
+        std::array<char, 46> buffer;
+        in6_addr addr = get_addr6(*this);
+        
+        if (::inet_ntop(AF_INET6, &addr, buffer.data(), buffer.size()) == NULL)
+            WSAcall(-1); //force error
+
+        return buffer.data();
     }
 
     end_point parse_end_point(::sockaddr const& addr) {
@@ -140,7 +156,7 @@ namespace Net {
         }
 
         ::sockaddr_storage resolve(std::string hostname, std::string port, int family) {
-            ::sockaddr_storage ss = {0};
+            ::sockaddr_storage ss;
 
             ::addrinfo options {
                 .ai_flags = 0,
@@ -214,7 +230,7 @@ cleanup:
         ::sockaddr out_addr;
         int out_len = sizeof(out_addr);
         socket_t client_sock = ::accept(sock, &out_addr, &out_len);
-        if (client_sock == INVALID_SOCKET || client_sock == -1)
+        if (client_sock == INVALID_SOCKET || client_sock == static_cast<Net::socket_t>(-1))
             WSAcall(SOCKET_ERROR);
 
         end_point peer = parse_end_point(out_addr);
@@ -229,7 +245,11 @@ cleanup:
 
     
     end_point get_peer_name(socket_t sock) {
-        
+        ::sockaddr_storage ss;
+        int len = sizeof(ss);
+        WSAcall(::getpeername(sock, (sockaddr*)&ss, &len));
+
+        return parse_end_point(reinterpret_cast<sockaddr const&>(ss));
     }
 
     end_point get_sock_name(socket_t sock) {
