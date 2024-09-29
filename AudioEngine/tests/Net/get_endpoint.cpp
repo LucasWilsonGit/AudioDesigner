@@ -1,0 +1,30 @@
+#include <iostream>
+
+#include "AudioEngine/address.hpp"
+#include "AudioEngine/sockapi.hpp"
+
+#ifdef _WIN32
+#include <winsock2.h>
+#endif
+
+#include <string>
+
+int main() {
+    Net::init();
+    
+    auto ep = Net::end_point(Net::address_ipv4("254.123.254.123"), 1234);
+
+    ::sockaddr_storage ss = Net::get_end_point(ep);
+    sockaddr_in const& ipv4 = reinterpret_cast<sockaddr_in const&>(ss);
+
+    if (ipv4.sin_family != AF_INET) 
+        return -1;
+
+    if (Net::address_ipv4(ipv4.sin_addr).display_string().find("254.123.254.123") == std::string::npos)
+        return -1;
+
+    if (ipv4.sin_port != htons(1234))
+        return -1;
+
+    return 0;
+}

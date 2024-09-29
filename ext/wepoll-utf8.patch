@@ -1,0 +1,556 @@
+﻿diff --git a/CMakeBundle.cmake b/CMakeBundle.cmake
+new file mode 100644
+index 0000000..d48d3dd
+--- /dev/null
++++ b/CMakeBundle.cmake
+@@ -0,0 +1,260 @@
++#[[
++@author:    Lucas Wilson
++@date:      22/09/2024
++@brief:     user defined functions for bundling the project into a jumbo header and sourcec file for distribution \
++as well as functions for input validation 
++@remarks:   This file will be included by other CMakeLists.txt so should not have any actual executing code, and should only define functions
++]]
++
++
++
++#This is probably set way too high but it's the CMake version I have.
++cmake_minimum_required(VERSION 3.21)
++
++
++
++#variables used by the following functions
++set(tracked_headers "")
++set(active_headers "")
++set(tracked_sources "")
++
++
++
++#Enforces that ${configuration} is in the set {STATIC SHARED MODULE}
++function(validate_configuration configuration)
++    set(VALID_CONFIGURATIONS STATIC SHARED MODULE)
++    list(FIND VALID_CONFIGURATIONS "${configuration}" CONFIG_FOUND)
++    if (${CONFIG_FOUND} EQUAL -1)
++        message(FATAL_ERROR "bundle_header: Invalid argument {2} `configuration` must be one of STATIC SHARED MODULE (got ${configuration}).")
++    endif()
++endfunction()
++
++
++
++#Based on the export macros hacked together into a filestructure and dealt with by the node bundling in the upstream repo
++function(set_wepoll_export_macro target configuration)
++    validate_configuration("${configuration}")
++
++    if ("${configuration}" STREQUAL "STATIC")
++        target_compile_definitions(${target} PUBLIC "WEPOLL_EXPORT=")
++    elseif("${configuration}" STREQUAL "SHARED")
++        #handle win32 dll exports    
++        if(WIN32) 
++            if(MSVC)
++                target_compile_definitions(${target} PUBLIC "WEPOLL_EXPORT=__declspec((dllexport))")
++            else()
++                target_compile_definitions(${target} PUBLIC "WEPOLL_EXPORT=__attribute__((dllexport))")
++            endif()
++
++        else() 
++            #exports for non windows
++            target_compile_definitions(${target} PUBLIC "WEPOLL_EXPORT=") #maybe this should be __attribute__((visibility(\"default\")))
++        endif()
++    elseif("${configuration}" STREQUAL "MODULE")
++        message(FATAL_ERROR "set_wepoll_export_macro: Unsupported configuration `${configuration}` (not implemented)")
++    endif()
++
++    target_compile_definitions(${target} PUBLIC "WEPOLL_INTERNAL=")
++    target_compile_definitions(${target} PUBLIC "WEPOLL_INTERNAL_EXTERN=extern")
++endfunction()
++
++
++
++#Check that the file `file_name` can be found in the list `valid_paths` (list passed firectly by value)
++#outputs the found apth to `check_file_exists__out`
++#TODO: Maybe take target as an argument, and use the target include dirs? 
++function(check_file_exists file_name valid_paths)
++    message(STATUS "check_file_exists ${file_name} ${valid_paths}")
++    set(found FALSE)
++    foreach (fpath IN LISTS valid_paths)
++        set(file_path "${CMAKE_CURRENT_SOURCE_DIR}/${fpath}/${file_name}")
++        if(EXISTS "${file_path}")
++            set(found TRUE)
++            break()
++        endif()
++    endforeach()
++    if (NOT found)
++        message(FATAL_ERROR "File `${file_name}` could not be found in paths: ${valid_paths}.")
++    endif()
++
++    message(STATUS "check_file_exists found ${file_path}")
++
++    #found file, write file_path to the caller scope
++    set(check_file_exists__out "${file_path}" PARENT_SCOPE)
++
++endfunction()
++
++
++
++#append the `header_name` header file contents to the `jumbo_file` if not already present.
++function(append_header jumbo_file header_name)
++    file(TOUCH "${jumbo_file}")
++
++    #early exit test
++    if ("${header_name}" IN_LIST tracked_headers)
++        return() 
++    endif()
++
++    #error if already processed header, means some kind of header loop
++    if("${header_name}" IN_LIST active_headers)
++        message(FATAL_ERROR "append_header: Recursive dependency ${header_name}. Active headers: ${active_headers};${header_name}")
++    endif()
++    list(APPEND active_headers "${header_name}")
++
++    #make build tree tmp dir if not exists
++    set(temp_dir "${CMAKE_BINARY_DIR}/tmp/wepoll")
++    if(NOT EXISTS "${temp_dir}")
++        file(MAKE_DIRECTORY "${temp_dir}")
++    endif()
++
++    #calculate tmp file path
++    set(temp_file "${temp_dir}/${header_name}")
++    file(WRITE "${temp_file}" "") #clear the tmp file
++
++    if(NOT DEFINED HEADER_PATHS)
++        message(FATAL_ERROR "append_header: required variable `HEADER_PATHS` is not defined.")
++    endif()
++    #Error if header not found in the include dirs, otherwise will write the header_path variable
++    check_file_exists("${header_name}" "${HEADER_PATHS}")
++
++    #read the header_name contents into header_contents
++    file(READ "${check_file_exists__out}" header_contents)
++
++    foreach(include_pattern IN LISTS INCLUDE_PATTERNS)
++        #parse out header includes TODO: Improve this
++        string(REGEX MATCHALL "${include_pattern}" found_includes "${header_contents}")
++        message(STATUS "found includes: ${found_includes}")
++        foreach(include IN LISTS found_includes)
++            string(REGEX MATCH "${include_pattern}" _ "${include}")
++            message(STATUS "Found parent header ${CMAKE_MATCH_1} in ${header_name}")
++            if(NOT "${CMAKE_MATCH_1}" IN_LIST HEADER_BLACKLIST)
++                message(STATUS "Processing ${CMAKE_MATCH_1}")
++                append_header("${jumbo_file}" "${CMAKE_MATCH_1}")
++            endif()
++        endforeach()
++    endforeach()
++
++    #purge includes from the file, the raw content will be appended ahead of our in-progress header append so the declarations will exist
++    string(REGEX REPLACE "#include[ \t]\"[^\"]+\"" "" clean_contents "${header_contents}")
++
++    #append the cleaned file to the temp_file
++    file(APPEND "${temp_file}" "${clean_contents}")
++
++    #"blit" across the contents, but this way we get a load of temp headers to see what was done and maybe debug issues
++    file(READ "${temp_file}" temp_contents)
++    file(APPEND "${jumbo_file}" "${temp_contents}")
++
++    set(tracked_headers "${tracked_headers};${header_name}" PARENT_SCOPE)
++    message(STATUS "tracked_headers: ${tracked_headers};${header_name}")
++endfunction()
++
++
++
++#append source contents to jumbo_file
++function(append_source jumbo_file source_name)
++    file(TOUCH "${jumbo_file}")
++
++    #early exit test
++    if ("${source_name}" IN_LIST tracked_sources)
++        return() 
++    endif()
++
++    #make build tree tmp dir if not exists
++    set(temp_dir "${CMAKE_BINARY_DIR}/tmp/wepoll")
++    if(NOT EXISTS "${temp_dir}")
++        file(MAKE_DIRECTORY "${temp_dir}")
++    endif()
++
++    #calculate tmp file path
++    set(temp_file "${temp_dir}/${source_name}")
++    file(WRITE "${temp_file}" "") #clear the tmp file
++
++    if(NOT DEFINED SOURCE_PATHS)
++        message(FATAL_ERROR "append_header: required variable `SOURCE_PATHS` is not defined.")
++    endif()
++    #Error if source not found in the source dirs, otherwise will write the check_file_exists__out variable
++    check_file_exists("${source_name}" "${SOURCE_PATHS}")
++
++    #read the header_name contents into source_contents
++    file(READ "${check_file_exists__out}" source_contents)
++
++    #purge includes from the file, the raw content will be appended ahead of our in-progress header append so the declarations will exist
++    string(REGEX REPLACE "#include[ \t]\"[^\"]+\"" "" clean_contents "${source_contents}")
++
++    #append the cleaned file to the temp_file
++    file(APPEND "${temp_file}" "${clean_contents}")
++
++    #"blit" across the contents, but this way we get a load of temp headers to see what was done and maybe debug issues
++    file(READ "${temp_file}" temp_contents)
++    file(APPEND "${jumbo_file}" "${temp_contents}")
++
++    set(tracked_sources "${tracked_sources};${source_name}" PARENT_SCOPE)
++
++endfunction()
++
++
++
++#check dir exists, if not then create directory, test it is created well
++function(make_dir_if_not_exists output_path)
++    #validate `output_path`
++    if (NOT output_path)
++        message(FATAL_ERROR "make_dir_if_not_exists: Invalid argument {1} `output_path` cannot be empty.")
++    endif()
++
++    if (NOT IS_DIRECTORY "${output_path}")
++        file(MAKE_DIRECTORY "${output_path}")
++        if (NOT IS_DIRECTORY "${output_path}")
++            message(FATAL_ERROR "make_dir_if_not_exists: Invalid argument {1} `output_path` must be a valid directory.")
++        endif()
++    endif()
++endfunction()
++
++
++
++#bundle together headers into a jumbo header
++function(bundle_headers output_path)
++
++    make_dir_if_not_exists("${output_path}")
++
++    set(tracked_headers "" PARENT_SCOPE)
++    set(active_headers "" PARENT_SCOPE)
++
++    #read and append the license to the jumbo header
++    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE" license)
++    file(WRITE "${output_path}/jumbo.h" "/**\n${license}\n*/\n")
++    
++    #start with win.h always (we handle duplicates so we can just bruteforce what includes we need early for somoe core edge cases)
++    #append_header("${output_path}/jumbo.h" "win.h") 
++    foreach(path IN LISTS HEADER_PATHS)
++        file(GLOB headers LIST "${CMAKE_CURRENT_SOURCE_DIR}/${path}/*.h")
++        foreach(header IN LISTS headers)
++            get_filename_component(header_name "${header}" NAME)
++            append_header("${output_path}/jumbo.h" "${header_name}")
++        endforeach()
++    endforeach()
++
++endfunction()
++
++
++
++#bundle together sources into a jumbo source file
++function(bundle_sources output_path)
++
++    make_dir_if_not_exists("${output_path}")
++
++    set(tracked_sources "" PARENT_SCOPE)
++    file(WRITE "${output_path}/jumbo.c" "#include \"jumbo.h\"\n")
++
++    #read and append the license to the jumbo c source
++    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE" license)
++    file(APPEND "${output_path}/jumbo.c" "/**\n${license}\n*/\n")
++    
++    foreach(path IN LISTS SOURCE_PATHS)
++        file(GLOB sources LIST "${CMAKE_CURRENT_SOURCE_DIR}/${path}/*.c")
++        foreach(source IN LISTS sources)
++            get_filename_component(source_name "${source}" NAME)
++            append_source("${output_path}/jumbo.c" "${source_name}")
++        endforeach()
++    endforeach()
++
++endfunction()
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index dfc13b7..cc024f7 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1,166 +1,105 @@
+-cmake_minimum_required(VERSION 3.0.0)
++cmake_minimum_required(VERSION 3.15.0)
+ project(wepoll)
+ 
+-include(CMakeParseArguments)
++file(GLOB SOURCES_DOC LICENSE *.md)
++
++
++#include functions defined for bundling source and header files
++include("${CMAKE_CURRENT_SOURCE_DIR}/CMakeBundle.cmake")
+ 
+-link_libraries(ws2_32)
++#Configuration parameters
++set(WEPOLL_CONFIGURATION "STATIC" CACHE STRING "wepoll build configuration")
++option(ENABLE_TESTS "Enable or Disable building and execution of tests" ON)
++
++#validate configuration parameters
++validate_configuration("${WEPOLL_CONFIGURATION}")
++
++set(WEPOLL_TARGET wepoll)
++set(WEPOLL_DIST_DIR "dist")
++add_library(
++  ${WEPOLL_TARGET}
++  ${WEPOLL_CONFIGURATION}
++)
++
++target_link_libraries(${WEPOLL_TARGET} PUBLIC ws2_32)
+ 
+ if(MSVC)
+-  add_compile_options(/Wall /WX /wd4127 /wd4201 /wd4242 /wd4710 /wd4711 /wd4820)
++  target_compile_options(${WEPOLL_TARGET} PUBLIC /Wall /WX /wd4127 /wd4201 /wd4242 /wd4710 /wd4711 /wd4820)
+   if(MSVC_VERSION GREATER_EQUAL 1900)
+-    add_compile_options(/wd5045)
++  target_compile_options(${WEPOLL_TARGET} PUBLIC /wd5045)
+   endif()
+ else()
+-  add_compile_options(-Wall -Wextra -Werror)
++  target_compile_options(${WEPOLL_TARGET} PUBLIC -W)
+ endif()
+ 
++#This can probably just be replaced with appends to the start of the jumbo h file to handle properly disabling C stuff if compiling with C not C
++#and then all builds of wepoll could just use the bundled jumbo files instead of the actual source files?
++#
+ # Work around bug in in Windows SDK 10.0.17763.0 and maybe other versions.
+-add_definitions(-D_CRT_HAS_CXX17=0)
++target_compile_definitions(${WEPOLL_TARGET} PUBLIC -D_CRT_HAS_CXX17=0)
+ 
+-file(GLOB SOURCES_DOC LICENSE *.md)
+-file(GLOB_RECURSE SOURCES_CONFIG config/*.h)
+-file(GLOB SOURCES_CONFIG_EXTERNAL_DLLEXPORT config/external/dllexport/*.h)
+-file(GLOB SOURCES_CONFIG_EXTERNAL_BUNDLE config/external/bundle/*.h)
+-file(GLOB SOURCES_CONFIG_EXTERNAL_STATIC config/external/static/*.h)
+-file(GLOB SOURCES_CONFIG_INTERNAL_BUNDLE config/internal/bundle/*.h)
+-file(GLOB SOURCES_CONFIG_INTERNAL_DEFAULT config/internal/default/*.h)
+-file(GLOB SOURCES_INCLUDE include/*.h)
+-file(GLOB SOURCES_SRC src/*.c src/*.h)
+-file(GLOB SOURCES_SRC_C src/*.c)
+-file(GLOB SOURCES_TEST test/*.c)
+-file(GLOB SOURCES_TEST_LEAK_CHECK test/shared/leak-check.*)
+-file(GLOB SOURCES_TEST_UTIL test/shared/test-util.*)
+-
+-set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+-source_group(doc FILES ${SOURCES_DOC})
+-source_group(config FILES ${SOURCES_CONFIG})
+-source_group(include FILES ${SOURCES_INCLUDE})
+-source_group(src FILES ${SOURCES_SRC})
+-source_group("" FILES ${SOURCES_TEST})
+-source_group(test/shared FILES ${SOURCES_TEST_LEAK_CHECK} ${SOURCES_TEST_UTIL})
+-
+-get_filename_component(LIB_NAME ${SOURCES_INCLUDE} NAME_WE)
+-
+-set(TOOL_RUN_TESTS "tools/run-tests.js")
+-set(TOOL_BUNDLE "tools/bundle.js")
+-
+-set(DIST_DIR "${PROJECT_BINARY_DIR}/dist")
+-set(GEN_DIR "${PROJECT_BINARY_DIR}/gen")
+-
+-file(MAKE_DIRECTORY ${DIST_DIR})
+-file(MAKE_DIRECTORY ${GEN_DIR})
+-
+-function(bundle_header)
+-  cmake_parse_arguments(BUNDLE "" "OUTPUT;EXTERNAL_CONFIG" "" ${ARGN})
+-  set(CONFIG_EXTERNAL_DIR "config/external/${BUNDLE_EXTERNAL_CONFIG}")
+-  file(GLOB SOURCES_CONFIG_EXTERNAL "${CONFIG_EXTERNAL_DIR}/*.h")
+-  add_custom_command(
+-    OUTPUT ${BUNDLE_OUTPUT}
+-    COMMAND node ${TOOL_BUNDLE}
+-            -I${CONFIG_EXTERNAL_DIR}
+-            ${SOURCES_INCLUDE}
+-            > ${BUNDLE_OUTPUT}
+-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+-    DEPENDS ${TOOL_BUNDLE} ${SOURCES_CONFIG_EXTERNAL} ${SOURCES_INCLUDE}
+-  )
+-endfunction()
++#define the WEPOLL_EXPORT to be used by the source
++set_wepoll_export_macro( "${WEPOLL_TARGET}" "${WEPOLL_CONFIGURATION}" )
+ 
+-function(bundle_source)
+-  cmake_parse_arguments(BUNDLE "" "OUTPUT;EXTERNAL_CONFIG" "" ${ARGN})
+-  set(CONFIG_EXTERNAL_DIR "config/external/${BUNDLE_EXTERNAL_CONFIG}")
+-  file(GLOB SOURCES_CONFIG_EXTERNAL "${CONFIG_EXTERNAL_DIR}/*.h")
+-  add_custom_command(
+-    OUTPUT ${BUNDLE_OUTPUT}
+-    COMMAND node ${TOOL_BUNDLE} --strip-guards
+-            -I${CONFIG_EXTERNAL_DIR} -Iconfig/internal/bundle -Iinclude -Isrc
+-            ${SOURCES_INCLUDE} ${SOURCES_SRC_C}
+-            > ${BUNDLE_OUTPUT}
+-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+-    DEPENDS ${TOOL_BUNDLE}
+-            ${SOURCES_CONFIG_EXTERNAL} ${SOURCES_CONFIG_INTERNAL_BUNDLE}
+-            ${SOURCES_INCLUDE} ${SOURCES_SRC}
+-  )
+-endfunction()
++set(INCLUDE_PATTERNS
++  "#include[ \t\r\n]*\"([^\"]+)\""
++#  "#include[ \t\r\n]*<([^<>])>"      Ignore system header includes. So long as the appropriate include style is used, then we can avoid bundling system headers.
++ )
+ 
+-set(BUNDLE_DIST_TARGET "dist")
+-set(BUNDLE_DIST_HEADER "${DIST_DIR}/${LIB_NAME}.h")
+-set(BUNDLE_DIST_SOURCE "${DIST_DIR}/${LIB_NAME}.c")
+-bundle_header(OUTPUT ${BUNDLE_DIST_HEADER} EXTERNAL_CONFIG bundle)
+-bundle_source(OUTPUT ${BUNDLE_DIST_SOURCE} EXTERNAL_CONFIG bundle)
+-set_source_files_properties(
+-  ${BUNDLE_DIST_HEADER} ${BUNDLE_DIST_SOURCE}
+-  PROPERTIES GENERATED TRUE
+-)
+-add_custom_target(
+-  ${BUNDLE_DIST_TARGET}
+-  DEPENDS ${BUNDLE_DIST_SOURCE} ${BUNDLE_DIST_HEADER}
+-  SOURCES ${SOURCES_CONFIG_EXTERNAL_BUNDLE} ${SOURCES_CONFIG_INTERNAL_BUNDLE}
+-          ${SOURCES_INCLUDE} ${SOURCES_SRC} ${SOURCES_DOC}
+-)
+-add_custom_command(
+-  TARGET ${BUNDLE_DIST_TARGET} POST_BUILD
+-  COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SOURCES_DOC} ${DIST_DIR}
+-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+-  DEPENDS ${SOURCES_DOC}
+-)
++#Places to look for headers
++set(HEADER_PATHS
++  #src before include otherwise it starts with wepoll.h which uses win.h constants but does not include win.h (nice)
++  "src"
++  "include"
++ )
+ 
+-set(DLL_TARGET "${LIB_NAME}.dll")
+-add_library(
+-  ${DLL_TARGET} SHARED
+-  ${SOURCES_CONFIG_EXTERNAL_DLLEXPORT} ${SOURCES_CONFIG_INTERNAL_DEFAULT}
+-  ${SOURCES_INCLUDE} ${SOURCES_SRC}
+-)
+-target_include_directories(
+-  ${DLL_TARGET} PUBLIC
+-  config/external/dllexport config/internal/default include src
++set(SOURCE_PATHS
++  "src"
+ )
+-set_target_properties(${DLL_TARGET} PROPERTIES OUTPUT_NAME ${DLL_TARGET})
+ 
+-set(BUNDLE_DLL_TARGET "${LIB_NAME}-bundle.dll")
+-set(BUNDLE_DLL_SOURCE "${GEN_DIR}/${LIB_NAME}-bundle-dll.c")
+-bundle_source(OUTPUT ${BUNDLE_DLL_SOURCE} EXTERNAL_CONFIG dllexport)
+-set_source_files_properties(${BUNDLE_DLL_SOURCE} PROPERTIES GENERATED TRUE)
+-add_library(
+-  ${BUNDLE_DLL_TARGET} SHARED
+-  ${SOURCES_CONFIG_EXTERNAL_DLLEXPORT} ${SOURCES_CONFIG_INTERNAL_DEFAULT}
+-  ${BUNDLE_DLL_SOURCE}
+-)
+-set_target_properties(
+-  ${BUNDLE_DLL_TARGET}
+-  PROPERTIES OUTPUT_NAME "${LIB_NAME}-bundle"
++set(HEADER_BLACKLIST
++  "config-internal.h"
++  "config-external.h"
+ )
+ 
+-set(TESTING_LIB_TARGET "${LIB_NAME}-testing.lib")
+-add_library(
+-  ${TESTING_LIB_TARGET} STATIC
+-  ${SOURCES_CONFIG_EXTERNAL_STATIC} ${SOURCES_CONFIG_INTERNAL_DEFAULT}
+-  ${SOURCES_INCLUDE} ${SOURCES_SRC} ${SOURCES_TEST_UTIL}
+-)
+-target_include_directories(
+-  ${TESTING_LIB_TARGET} PUBLIC
+-  config/external/static config/internal/default include src
+-)
+-set_target_properties(
+-  ${TESTING_LIB_TARGET} PROPERTIES
+-  OUTPUT_NAME "${LIB_NAME}-testing"
+-)
++#defined in CMakeBundle.cmake
++bundle_headers("${CMAKE_CURRENT_SOURCE_DIR}/${WEPOLL_DIST_DIR}")
++bundle_sources("${CMAKE_CURRENT_SOURCE_DIR}/${WEPOLL_DIST_DIR}")
++
++
++target_include_directories(${WEPOLL_TARGET} PUBLIC "${WEPOLL_DIST_DIR}")
++target_sources(${WEPOLL_TARGET} PRIVATE "${WEPOLL_DIST_DIR}/jumbo.c")
+ 
+-foreach(TEST_SOURCE ${SOURCES_TEST})
+-  get_filename_component(TEST_NAME ${TEST_SOURCE} NAME_WE)
+-  add_executable(${TEST_NAME} ${TEST_SOURCE} ${SOURCES_TEST_LEAK_CHECK})
+-  target_include_directories(
+-    ${TEST_NAME} PUBLIC
+-    config/external/static config/internal/default include src test/shared
++
++enable_testing()
++
++function(wepoll_add_test test_target test_source)
++
++  file(GLOB sources src/*.c)
++  set(test_sources "${test_source}" "${CMAKE_CURRENT_SOURCE_DIR}/test/shared/test-util.c" "${sources}")
++
++  add_executable(${test_target})
++  target_include_directories(${test_target} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/test/shared" "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_SOURCE_DIR}/src" )
++  target_sources(${test_target} PRIVATE "${test_sources}")
++  set_target_properties( ${test_target}
++    PROPERTIES
++    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
++    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
++    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+   )
+-  target_link_libraries(${TEST_NAME} ${TESTING_LIB_TARGET})
+-  set_target_properties(${TEST_NAME} PROPERTIES FOLDER Tests)
+-  list(APPEND TEST_TARGETS ${TEST_NAME})
+-  list(APPEND TEST_OUTPUTS $<TARGET_FILE:${TEST_NAME}>)
+-endforeach()
+-
+-add_custom_target(
+-  test-all
+-  COMMAND node ${TOOL_RUN_TESTS} ${TEST_OUTPUTS}
+-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+-  DEPENDS ${TOOL_RUN_TESTS} ${TEST_TARGETS}
+-)
++
++  set_wepoll_export_macro( "${test_target}" "${WEPOLL_CONFIGURATION}" )
++
++  target_link_libraries(${test_target} PUBLIC ws2_32)
++
++  add_test(
++    NAME "ctest_${test_target}"
++    COMMAND ${test_target}
++  )
++
++endfunction()
++
++
++
++wepoll_add_test(test_auto_drop_on_close "test/test-auto-drop-on-close.c")
++
+diff --git a/include/wepoll.h b/include/wepoll.h
+index 3d743b5..832005e 100644
+--- a/include/wepoll.h
++++ b/include/wepoll.h
+@@ -1,7 +1,6 @@
+ #ifndef WEPOLL_H_
+ #define WEPOLL_H_
+ 
+-#include "config-external.h"
+ 
+ #include <stdint.h>
+ 
+diff --git a/src/afd.h b/src/afd.h
+index af90219..896cb27 100644
+--- a/src/afd.h
++++ b/src/afd.h
+@@ -1,7 +1,6 @@
+ #ifndef WEPOLL_AFD_H_
+ #define WEPOLL_AFD_H_
+ 
+-#include "config.h"
+ #include "nt.h"
+ #include "win.h"
+ 
+diff --git a/src/config.h b/src/config.h
+index c469e5c..22dad32 100644
+--- a/src/config.h
++++ b/src/config.h
+@@ -1,6 +1,5 @@
+ #ifndef WEPOLL_CONFIG_H_
+ #define WEPOLL_CONFIG_H_
+ 
+-#include "config-internal.h"
+ 
+ #endif /* WEPOLL_CONFIG_H_ */

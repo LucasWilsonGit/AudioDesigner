@@ -10,7 +10,10 @@
 
 #include "AudioEngine/sockapi.hpp"
 
-namespace AudioEngine {
+namespace Net {
+    //fdecl to be friend of ipv4 ipv6
+    class end_point;
+
     using port_t = uint16_t;
     constexpr port_t PORT_ANY = 0;
 
@@ -50,11 +53,21 @@ namespace AudioEngine {
             return result;
         }
 
-        std::array<std::byte, 4> bytes() const {
+        std::array<std::byte, 4> bytes() const noexcept {
             return m_bytes;
         }
 
+        std::byte const* data() const noexcept {
+            return m_bytes.data();
+        }
+
     protected:
+        friend class end_point;
+
+        std::array<std::byte, 4> const& peek_bytes() const noexcept {
+            return m_bytes;
+        }
+
     private:
     };
 
@@ -71,21 +84,50 @@ namespace AudioEngine {
             return std::to_integer<uint8_t>(m_bytes[0]) == 0xff;
         }
 
+        std::string display_string() const; //defined by sockapi (I know, this is a bit weird but we need to use inet_ntop)
+
+        std::byte const* data() const noexcept {
+            return m_bytes.data();
+        }
+
     protected:
+        friend class end_point;
+
+        std::array<std::byte, 16> const& peek_bytes() const noexcept {
+            return m_bytes;
+        }
     private:
     };
 
-    class end_point {
-    private:        
-        std::variant<address_ipv4, address_ipv6> m_address;
-        port_t m_port;
+    struct end_point {       
+        std::variant<address_ipv4, address_ipv6> address;
+        port_t port;
 
     public:
-        end_point(std::variant<address_ipv4, address_ipv6> const& addr, port_t port = PORT_ANY) noexcept :
-            m_address(addr),
-            m_port(port)
+        end_point(std::variant<address_ipv4, address_ipv6> const& addr, port_t in_port = PORT_ANY) noexcept :
+            address(addr),
+            port(in_port)
         {}
 
+        //gets a sockaddr_storage (struct is identical on windows and linux I think?)
+        //defined in sockapi_$PLATFORM.cp
+        ::sockaddr_storage get_sockaddr() const;
 
+        struct address_string_visitor {
+            __forceinline std::string operator()(address_ipv4 const& addr) {
+                return addr.display_string();
+            }
+            __forceinline std::string operator()(address_ipv6 const& addr) {
+                return addr.display_string();
+            }
+        };
+
+        operator std::string() const {
+            return std::visit(address_string_visitor{}, address) + ":" + std::to_string(port);
+        }
+        friend std::ostream& operator<<(std::ostream& out, end_point const& obj) {
+            out << static_cast<std::string>(obj);
+            return out;
+        }
     };
 }
