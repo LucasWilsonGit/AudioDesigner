@@ -28,7 +28,6 @@ This requires a user account be configured to run the allocator service, which w
 8. In the **Local Security Policy** Setting dialog box, select **Add User or Group....** 
    Add all users of AudioEngine that you would like to allow Large Page allocations. Consider making a separate user specifically for this policy, and making this the default user of the AudioEngineAllocator Service.
 9. Select OK.
-10. Restart the AudioEngineAllocator service.
 
 ## Contributing  
 
