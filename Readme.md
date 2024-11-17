@@ -6,8 +6,6 @@ Robust DSP chain framework with multiple premade effects and basic miniaudio bas
 
 Requires a CMake version compatible with FetchDependency and  some other modern CMake features. Recommended CMake 3.15
 
-It may be necessary to specify -DWIN32 as a flag when building for windows platforms, I've not yet fully moved across to checking CMAKE_PLATFORM_NAME instead of using the deprecated platform variables.
-
 #### Enabling gpedit.msc on Windows:
 
 Run the following two commands in sequence:
