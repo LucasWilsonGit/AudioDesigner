@@ -14,8 +14,8 @@ int main() {
     
     auto ep = Net::end_point(Net::address_ipv4("254.123.254.123"), 1234);
 
-    ::sockaddr_storage ss = Net::get_end_point(ep);
-    sockaddr_in const& ipv4 = reinterpret_cast<sockaddr_in const&>(ss);
+    auto [addrstorage, addrlen] = Net::get_end_point(ep);
+    sockaddr_in const& ipv4 = reinterpret_cast<sockaddr_in const&>(addrstorage);
 
     if (ipv4.sin_family != AF_INET) 
         return -1;

@@ -16,6 +16,7 @@ namespace wepoll {
 
 //being very explicit about namespaces just to avoid any future headaches
 namespace Net {
+    void on_completion(DWORD error, DWORD bytes, LPWSAOVERLAPPED info, DWORD flags) {}
 
     std::string errno_string(int err) {
         char* buf = nullptr;
@@ -33,9 +34,21 @@ namespace Net {
         return str; 
     }
 
-    void WSAcall(int ret) {
+    void emit_WSA_error(int error) {
+        throw net_error("WSA error: " + errno_string(error));
+    }
+
+    void emit_WSA_error() {
+        int error = WSAGetLastError();
+        if (error == WSAEWOULDBLOCK) //provide a unique catchable type for block errors on nonblocking sockets
+            throw would_block_error("Operation on non-blocking socket would block");
+
+        emit_WSA_error(WSAGetLastError());
+    }
+
+    void WSA_call(int ret) {
         if (ret != 0) {
-            throw net_error("WSA error: " + errno_string(WSAGetLastError()));
+            emit_WSA_error();
         }
     }
 
@@ -43,11 +56,11 @@ namespace Net {
         int result;
         WSADATA wsa_data;
 
-        WSAcall(WSAStartup(MAKEWORD(2,2), &wsa_data));
+        WSA_call(WSAStartup(MAKEWORD(2,2), &wsa_data));
     }
 
     void cleanup() {
-        WSAcall(WSACleanup());
+        WSA_call(WSACleanup());
     }
 
     std::array<std::byte, 4> parse_ipv4(std::string const& addr) {
@@ -102,9 +115,13 @@ namespace Net {
         in_addr addr = get_addr4(*this);
         
         if (::inet_ntop(AF_INET, &addr, buffer.data(), buffer.size()) == NULL)
-            WSAcall(-1); //force error
+            WSA_call(-1); //force error
 
         return buffer.data();
+    }
+
+    uint32_t address_ipv4::number() const noexcept {
+        return ntohl(*(uint32_t*)m_bytes.data());
     }
 
     std::string address_ipv6::display_string() const {
@@ -112,7 +129,7 @@ namespace Net {
         in6_addr addr = get_addr6(*this);
         
         if (::inet_ntop(AF_INET6, &addr, buffer.data(), buffer.size()) == NULL)
-            WSAcall(-1); //force error
+            WSA_call(-1); //force error
 
         return buffer.data();
     }
@@ -148,14 +165,14 @@ namespace Net {
     }
 
     struct sockaddr_resolver{
-        ::sockaddr_storage operator()(address_ipv4 const& addr, port_t port) {
+        std::pair<::sockaddr_storage, size_t> operator()(address_ipv4 const& addr, port_t port) {
             return this->resolve(addr.display_string(), std::to_string(port), AF_INET);
         }
-        ::sockaddr_storage operator()(address_ipv6 const& addr, port_t port) {
+        std::pair<::sockaddr_storage, size_t> operator()(address_ipv6 const& addr, port_t port) {
             return this->resolve(addr.display_string(), std::to_string(port), AF_INET6);
         }
 
-        ::sockaddr_storage resolve(std::string hostname, std::string port, int family) {
+        std::pair<::sockaddr_storage, size_t> resolve(std::string hostname, std::string port, int family) {
             ::sockaddr_storage ss;
 
             ::addrinfo options {
@@ -170,11 +187,14 @@ namespace Net {
             };
 
             ::addrinfo* p_res = nullptr;
-            WSAcall(::getaddrinfo(hostname.c_str(), port.c_str(), &options, &p_res));
+            WSA_call(::getaddrinfo(hostname.c_str(), port.c_str(), &options, &p_res));
+
+            size_t length = 0;
 
             for ( ; p_res; p_res = p_res->ai_next ) {
                 if (p_res->ai_family == family) {
                     ::std::memcpy(&ss, p_res->ai_addr, p_res->ai_addrlen);
+                    length = p_res->ai_addrlen;
                     goto cleanup;
                 }
             }
@@ -183,47 +203,36 @@ namespace Net {
 
 cleanup:
             ::freeaddrinfo(p_res);
-            return ss;
+            return std::make_pair(ss, length);
         }
 
     };
     
-    ::sockaddr_storage get_end_point(end_point const& ep) {
+    std::pair<::sockaddr_storage, size_t> get_end_point(end_point const& ep) {
         sockaddr_resolver resolver{};
         auto callable = std::bind(resolver, std::placeholders::_1, ep.port);
-        ::sockaddr_storage res = std::visit(callable, ep.address);
-        return res;
+        return std::visit(callable, ep.address);
     }
 
-    ::sockaddr_storage end_point::get_sockaddr() const {
+    std::pair<::sockaddr_storage, size_t> end_point::get_sockaddr() const {
         return get_end_point(*this);
     }
 
     socket_t socket(int family, int type, int proto) {
         socket_t res = ::socket(family, type, proto);
         if (res == INVALID_SOCKET)
-            WSAcall(-1); //kickstart the usual net error stuff
+            WSA_call(-1); //kickstart the usual net error stuff
         return res; 
     }
 
     void bind(socket_t sock, end_point const& target) {
         int addrlen;
-        ::sockaddr_storage ss = get_end_point(target);
-        switch (ss.ss_family) {
-            case AF_INET:
-                addrlen = sizeof(sockaddr_in);
-                break;
-            case AF_INET6:
-                addrlen = sizeof(sockaddr_in6);
-                break;
-            default:
-                throw net_error("Unsupported AF_FAMILY");
-        }
-        WSAcall(::bind(sock, (SOCKADDR*)&ss, addrlen));
+        auto [ss, size] = get_end_point(target);
+        WSA_call(::bind(sock, (SOCKADDR*)&ss, size));
     }
 
     void listen(socket_t sock, int num_clients) {
-        WSAcall(::listen(sock, num_clients));
+        WSA_call(::listen(sock, num_clients));
     }
 
     std::pair<socket_t, end_point> accept(socket_t sock) {
@@ -231,7 +240,7 @@ cleanup:
         int out_len = sizeof(out_addr);
         socket_t client_sock = ::accept(sock, &out_addr, &out_len);
         if (client_sock == INVALID_SOCKET || client_sock == static_cast<Net::socket_t>(-1))
-            WSAcall(SOCKET_ERROR);
+            WSA_call(SOCKET_ERROR);
 
         end_point peer = parse_end_point(out_addr);
 
@@ -239,15 +248,22 @@ cleanup:
     }
 
     void close(socket_t sock) {
-        WSAcall(::closesocket(sock));
+        WSA_call(::closesocket(sock));
     }
 
-
+    void connect(socket_t sock, end_point const& endpoint) {
+        auto [ss, addrlen] = endpoint.get_sockaddr();
+        
+        int res = ::connect(sock, reinterpret_cast<sockaddr const*>(&ss), static_cast<int>(addrlen)); //narrowing conversion is a bit cursed
+        int error = WSAGetLastError();
+        if (res == SOCKET_ERROR)
+            emit_WSA_error(error);
+    }
     
     end_point get_peer_name(socket_t sock) {
         ::sockaddr_storage ss;
         int len = sizeof(ss);
-        WSAcall(::getpeername(sock, (sockaddr*)&ss, &len));
+        WSA_call(::getpeername(sock, (sockaddr*)&ss, &len));
 
         return parse_end_point(reinterpret_cast<sockaddr const&>(ss));
     }
@@ -255,16 +271,24 @@ cleanup:
     end_point get_sock_name(socket_t sock) {
         ::sockaddr_storage ss;
         int len = sizeof(ss);
-        WSAcall(::getsockname(sock, (sockaddr*)&ss, &len));
+        WSA_call(::getsockname(sock, (sockaddr*)&ss, &len));
 
         return parse_end_point(reinterpret_cast<sockaddr const&>(ss));
+    }
+
+    void set_sock_opt(socket_t sock, int level, int optname, char* optval, int optlen) {
+        WSA_call(::setsockopt(sock, level, optname, optval, optlen));
+    }
+
+    void get_sock_opt(socket_t sock, int level, int optname, char* optval, int* optlen) {
+        WSA_call(::getsockopt(sock, level, optname, optval, optlen));
     }
 
 
 
     template <class... Ts>
     void ioctl(socket_t sock, iocmdtype_t cmd, Ts const&... args) {
-        WSAcall(::ioctlsocket(sock, cmd, args...     ));
+        WSA_call(::ioctlsocket(sock, cmd, args...     ));
     }
     template void ioctl<u_long*>(socket_t, iocmdtype_t, u_long* const&);
 
@@ -272,8 +296,8 @@ cleanup:
         static_assert(sizeof(pollfd) == sizeof(::pollfd), "internal pollfd definition does not match the size of the OS pollfd definition");
 
         int res = ::WSAPoll((WSAPOLLFD*)entries.data(), entries.size(), timeout_ms);
-        if (res == -1) //-1 handling
-            WSAcall(res);
+        if (res == SOCKET_ERROR)
+            emit_WSA_error();
 
         return res;
     }
@@ -298,4 +322,37 @@ cleanup:
         return wepoll::epoll_close(ep);
     }
 
+    int send(socket_t sock, uint8_t const* buf, int size, int flags) {
+        int res = ::send(sock, reinterpret_cast<char const*>(buf), size, flags);
+        if (res == SOCKET_ERROR)
+            emit_WSA_error();
+        
+        return res;
+    }
+
+    int sendto(socket_t sock, uint8_t const* buf, int size, int flags, end_point const& dst) {
+        auto [addrstorage, addrsize] = dst.get_sockaddr();
+
+        int res = ::sendto(sock, reinterpret_cast<char const*>(buf), size, flags, reinterpret_cast<sockaddr const*>(&addrstorage), addrsize); 
+        if (res == SOCKET_ERROR)
+            emit_WSA_error();
+        
+        return res;
+    }
+
+    int sendmsg(socket_t sock, message_header_t *header, int flags) {
+        DWORD outbytes;
+        if (::WSASendMsg(sock, reinterpret_cast<LPWSAMSG>(header), flags, &outbytes, nullptr, on_completion ) == SOCKET_ERROR)
+            emit_WSA_error();
+
+        return outbytes;
+    }
+
+    void shutdown(socket_t sock, int how) {
+         WSA_call(::shutdown(sock, how));
+    }
+
+    int write(socket_t sock, void *buf, size_t len) {
+        return send(sock, reinterpret_cast<uint8_t const*>(buf), static_cast<int>(len), 0);
+    }
 }

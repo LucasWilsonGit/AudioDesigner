@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.25 FATAL_ERROR)
 
+set(CMAKE_SUPPRESS_REGENERATION FALSE)
+
 set(WINDOWS_PLATFORMS "Windows" "MSYS" "CYGWIN")
 list(FIND WINDOWS_PLATFORMS "MSYS" audiodesigner_platform_index)
 function(iswindows)
@@ -15,6 +17,7 @@ option(TESTING_ENABLED "Toggle all testing" ON)
 option(WEPOLL_TESTING "Enable testing for the wepoll library" ON)
 option(MINIAUDIO_TESTING "Enable testing for the miniaudio library" OFF)
 option(NET_TESTING "Enable testing for Net library" ON)
+option(RINGBUFFER_TESTING "Enable testing for ringbuffers" ON)
 
 set(CMAKE_INSTALL_PREFIX "$CMAKE_CURRENT_SOURCE_DIR/_install")
 

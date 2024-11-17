@@ -16,7 +16,7 @@ int main() {
     addr.S_un.S_addr = htonl(0xFE7BFE7B);
 
     auto ip = Net::address_ipv4(addr);
-    if (ip.number() != htonl(0xfe7bfe7b))
+    if (ip.number() != 0xfe7bfe7b)
         return -1;
 
     return 0;

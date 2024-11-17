@@ -7,10 +7,18 @@
 #include <iostream>
 #include <regex>
 #include <variant>
+#include <compare>
+#include <cstring>
 
 #include "AudioEngine/sockapi.hpp"
 
 namespace Net {
+    // Concept to check if two types can be compared with ==
+    template <typename T1, typename T2>
+    concept equality_comparable = requires(T1 a, T2 b) {
+        { a == b } -> std::convertible_to<bool>;
+    };
+
     //fdecl to be friend of ipv4 ipv6
     class end_point;
 
@@ -55,8 +63,10 @@ namespace Net {
             return m_bytes.data();
         }
 
-        uint32_t number() const noexcept {                                                              //tested
-            return *(uint32_t*)m_bytes.data();
+        uint32_t number() const noexcept;
+
+        bool operator==(address_ipv4 const& other) const noexcept {
+            return std::memcmp(m_bytes.data(), other.peek_bytes().data(), m_bytes.size()) == 0;
         }
 
     protected:
@@ -92,6 +102,10 @@ namespace Net {
             return m_bytes.data();
         }
 
+        bool operator==(address_ipv6 const& other) const noexcept {
+            return std::memcmp(m_bytes.data(), other.peek_bytes().data(), m_bytes.size()) == 0;
+        }
+
     protected:
         friend class end_point;
 
@@ -111,9 +125,9 @@ namespace Net {
             port(in_port)
         {}
 
-        //gets a sockaddr_storage (struct is identical on windows and linux I think?)
-        //defined in sockapi_$PLATFORM.cp
-        ::sockaddr_storage get_sockaddr() const;
+        //gets a sockaddr_storage (struct is identical on windows and linux I think?) also returns the size of the struct because it's a very common use pattern to need to pass the size of a struct sockaddr* 
+        //defined in sockapi_$PLATFORM.cpp
+        std::pair<::sockaddr_storage, size_t> get_sockaddr() const;
 
         struct address_string_visitor {
             __forceinline std::string operator()(address_ipv4 const& addr) {
@@ -130,6 +144,23 @@ namespace Net {
         friend std::ostream& operator<<(std::ostream& out, end_point const& obj) {
             out << static_cast<std::string>(obj);
             return out;
+        }
+
+        auto operator==(end_point const& other) const noexcept {
+            if (port != other.port)
+                return false;
+
+            return std::visit(
+                [](const auto& lhs, const auto& rhs) -> bool {
+                    if constexpr (equality_comparable<decltype(lhs), decltype(rhs)>) 
+                        return lhs == rhs;
+                    else {
+                        return false;
+                    }
+                }, 
+                address, 
+                other.address
+            );
         }
     };
 }

@@ -29,19 +29,7 @@ struct sockaddr;
 struct sockaddr_in;
 struct sockaddr_in6;
 //16byte aligned 128 byte buffer based on RFC 4393 assuming max 128byte sockaddr type
-struct sockaddr_storage;
-
-union epoll_data {
-    void *ptr;
-    int fd;
-    uint32_t u32;
-    uint64_t u64;
-};
-typedef union epoll_data epoll_data_t;
-struct epoll_event {
-    uint32_t events;
-    epoll_data_t data;
-};
+struct alignas(16) sockaddr_storage;
 
 namespace Net {
     //fdecl socket.hpp class socket
@@ -53,40 +41,44 @@ namespace Net {
 #ifdef _WIN32 
     using epoll_handle_t = void*;
 
-    #define POLLPRI = 0x400;
+    constexpr uint64_t POLLPRI = 0x400;
     
-    #define POLLRDNORM = 0x100;
-    #define POLLRDBAND = 0x200;
-    #define POLLIN = POLLRDNORM | POLLRDBAND;
+    constexpr uint64_t POLLRDNORM = 0x100;
+    constexpr uint64_t POLLRDBAND = 0x200;
+    constexpr uint64_t POLLIN = POLLRDNORM | POLLRDBAND;
 
-    #define POLLWRNORM = 0x10;
-    #define POLLWRBAND = 0x20;
-    #define POLLOUT = POLLWRNORM | POLLWRBAND;
+    constexpr uint64_t POLLWRNORM = 0x10;
+    constexpr uint64_t POLLWRBAND = 0x20;
+    constexpr uint64_t POLLOUT = POLLWRNORM | POLLWRBAND;
 
-    #define POLLERR = 0x1;
-    #define POLLHUP = 0x2;
-    #define POLLNVAL = 0x4;
+    constexpr uint64_t POLLERR = 0x1;
+    constexpr uint64_t POLLHUP = 0x2;
+    constexpr uint64_t POLLNVAL = 0x4;
 
-    #define POLLMSG = POLLIN;
-    
+    constexpr uint64_t POLLMSG = POLLIN;
+
+    using message_header_t = void;
+
 #else
     using epoll_handle_t = int;
 
-    #define POLLIN = 0x1;
-    #define POLLPRI = 0x2;
-    #define POLLOUT = 0x4;
-    #define POLLERR = 0x8;
-    #define POLLHUP = 0x10;
-    #define POLLNVAL = 0x20;
+    constexpr uint64_t POLLIN = 0x1;
+    constexpr uint64_t POLLPRI = 0x2;
+    constexpr uint64_t POLLOUT = 0x4;
+    constexpr uint64_t POLLERR = 0x8;
+    constexpr uint64_t POLLHUP = 0x10;
+    constexpr uint64_t POLLNVAL = 0x20;
 
-    #define POLLRDNORM = 0x40;
-    #define POLLRDBAND = 0x80;
-    #define POLLWRNORM = 0x100;
-    #define POLLWRBAND = 0x200;
+    constexpr uint64_t POLLRDNORM = 0x40;
+    constexpr uint64_t POLLRDBAND = 0x80;
+    constexpr uint64_t POLLWRNORM = 0x100;
+    constexpr uint64_t POLLWRBAND = 0x200;
 
-    #define POLLMSG = 0x400;
-    #define POLLREMOVE = 0x1000;
-    #define POLLRDHUP = 0x2000;
+    constexpr uint64_t POLLMSG = 0x400;
+    constexpr uint64_t POLLREMOVE = 0x1000;
+    constexpr uint64_t POLLRDHUP = 0x2000;
+
+    using message_header = void;
 
 #endif
 
@@ -131,37 +123,56 @@ namespace Net {
     ::in6_addr get_addr6(address_ipv6 const& addr);
 
     //get an end_point from a sockaddr
-    end_point parse_end_point(::sockaddr const& addr);
+    end_point parse_end_point(::sockaddr const& addr);                                  //Tested
 
-    //ugly interface due to out reference, but it's for internal use except for people who want to do something fancy
-    ::sockaddr_storage get_end_point(end_point const& ep);
+    //get a socketaddr from an end point
+    std::pair<::sockaddr_storage, size_t> get_end_point(end_point const& ep);           //Tested
 
     //create an unbound socket
-    socket_t socket(int family, int type, int protocol);
+    socket_t socket(int family, int type, int protocol);                                //Tested
 
     //binds the passed socket to the passed endpoint
-    void bind(socket_t sock, end_point const& endpoint);
+    void bind(socket_t sock, end_point const& endpoint);                                //Tested
 
     //listen for up to num_clients incoming connections
-    void listen(socket_t sock, int num_clients);
+    void listen(socket_t sock, int num_clients);                                        //Tested
 
-    //blocks until sock receives a connection request, then accepts the connection and returns the connecting socket
-    std::pair<socket_t, end_point> accept(socket_t sock);
+    //accept the first incoming connection
+    std::pair<socket_t, end_point> accept(socket_t sock);                               //Tested, depends connect
 
     //closes the passed socket
-    void close(socket_t sock);
+    void close(socket_t sock);                                                          //Tested   
 
     //opens a connection to the peer
-    void connect(socket_t sock, end_point const& endpoint);
+    void connect(socket_t sock, end_point const& endpoint);                             //Tested by case accept
 
     //get the addr, port of the peer
-    end_point get_peer_name(socket_t sock);
+    end_point get_peer_name(socket_t sock);                                             //Tested, depends bind & connect
 
     //gets the addr, port of the local binding.
-    end_point get_sock_name(socket_t sock);
+    end_point get_sock_name(socket_t sock);                                             //Tested, depends bind
 
     //configure socket
-    void set_sock_opt(socket_t sock, int level, int optname, void* optval, int optlen);
+    void set_sock_opt(socket_t sock, int level, int optname, char* optval, int optlen);
+
+    template <size_t N>
+    void set_sock_opt(socket_t sock, int level, int optname, std::array<std::byte, N> const& opt) {
+        set_sock_opt(sock, level, optname, reinterpret_cast<char*>(opt.data()), static_cast<int>(N));
+    }
+
+    template <class T>
+    void set_sock_opt(socket_t sock, int level, int optname, T const& opt) {
+        set_sock_opt(sock, level, optname, reinterpret_cast<char*>(&opt), static_cast<int>(sizeof(opt)));
+    }
+
+    //check socket configuration
+    void get_sock_opt(socket_t sock, int level, int optname, char* optval, int *optlen);
+
+    template <class T>
+    void get_sock_opt(socket_t sock, int level, int optname, T& out_opt) {
+        int len = sizeof(T);
+        get_sock_opt(sock, level, optname, reinterpret_cast<char*>(&out_opt), &len);
+    }
 
 #ifndef WIN32
     using iocmdtype_t = uint32_t;
@@ -199,9 +210,33 @@ namespace Net {
     int epoll_wait(epoll_handle_t ep, struct epoll_event *events, int maxevents, int timeout);
     int epoll_close(epoll_handle_t ep);
 
-    void send();
-    void sendto();
-    void sendmsg();
-    void shutdown();
-    void write();
+    int send(socket_t sock, uint8_t const* buf, int size, int flags);
+
+    template <size_t N>
+    int send(socket_t sock, std::array<std::byte, N> data, int flags) {
+        return send(sock, data.data(), N, flags);
+    }
+
+    int sendto(socket_t sock, uint8_t const* buf, int size, int flags, end_point const& dst);
+
+    template <size_t N>
+    int sendto(socket_t sock, std::array<std::byte, N> data, int flags, end_point const& dst) {
+        return sendto(sock, data.data(), data.size(), flags, dst); //calls out to non-templated definition
+    }
+    
+    int sendmsg(socket_t sock, message_header_t *header, int flags);
+
+    void shutdown(socket_t sock, int how);
+
+    int write(socket_t sock, void * buf, size_t len);
+
+    template <size_t N>
+    int write(socket_t sock, std::array<std::byte, N> data) {
+        return write(sock, data.data(), N);
+    }
+
+    template <class T>
+    int write(socket_t sock, T const& data) {
+        return write(sock, &data, sizeof(T));
+    }
 }
