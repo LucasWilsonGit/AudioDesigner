@@ -77,3 +77,7 @@ namespace Memory {
         std::string get_error_msg(); //platform specific
     };
 }
+
+namespace AudioEngine {
+    REGISTER_AUDIOENGINE_ERROR(cfg_parse_error, AudioEngine::dsp_error);
+}

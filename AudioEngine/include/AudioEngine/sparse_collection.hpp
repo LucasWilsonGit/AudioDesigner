@@ -70,6 +70,11 @@ namespace AudioEngine {
             return *(entry_handle*)(&kidx);
         }
 
+        template <class... Args>
+        [[nodiscard]] entry_handle emplace(Args&&... arg) {
+            return add(Type(std::forward<Args>(arg)...));
+        }
+
         void remove(entry_handle k) {
             if (k.key_index >= Capacity)
                 throw std::out_of_range("Attempt to remove key beyond capacity of sparse_collection");
@@ -97,6 +102,12 @@ namespace AudioEngine {
             auto& key = m_keys[k.key_index];
             return m_values[key.value()].value;
         }
+
+        auto begin() noexcept { return m_values.begin(); }
+        auto end() noexcept { return m_values.end(); }
+
+        auto cbegin() const noexcept { return m_values.cbegin(); }
+        auto cend() const noexcept { return m_values.cend(); }
     };
 
 }

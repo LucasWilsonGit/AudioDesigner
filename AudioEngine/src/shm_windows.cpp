@@ -11,13 +11,8 @@ namespace Memory {
         HANDLE m_handle;
     
     public:
-        temporary_handle(HANDLE hnd) : m_handle(hnd) {
-            std::cout << format("{} {} \n", __PRETTY_FUNCTION__, peek_handle());
-        }
-        ~temporary_handle() { 
-            std::cout << format("{} {} \n", __PRETTY_FUNCTION__, peek_handle());
-            ::CloseHandle(m_handle); 
-        }
+        temporary_handle(HANDLE hnd) : m_handle(hnd) {}
+        ~temporary_handle() { ::CloseHandle(m_handle); }
 
         HANDLE const& peek_handle() const noexcept { return m_handle; }
     };

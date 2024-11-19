@@ -103,6 +103,11 @@ namespace AudioEngine {
             return *this;
         }
 
+        template <class T2>
+        constexpr bool operator==(block_allocator<T2, N> const& other) noexcept {
+            return m_p_storage == other.m_p_storage;
+        }
+
 
         template <class U>
         block_allocator(block_allocator<U, N> const& other) noexcept : m_p_storage(other.m_p_storage) {}
