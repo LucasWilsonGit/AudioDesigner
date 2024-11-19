@@ -6,8 +6,6 @@ Robust DSP chain framework with multiple premade effects and basic miniaudio bas
 
 Requires a CMake version compatible with FetchDependency and  some other modern CMake features. Recommended CMake 3.15
 
-It may be necessary to specify -DWIN32 as a flag when building for windows platforms, I've not yet fully moved across to checking CMAKE_PLATFORM_NAME instead of using the deprecated platform variables.
-
 #### Enabling gpedit.msc on Windows:
 
 Run the following two commands in sequence:
@@ -28,7 +26,6 @@ This requires a user account be configured to run the allocator service, which w
 8. In the **Local Security Policy** Setting dialog box, select **Add User or Group....** 
    Add all users of AudioEngine that you would like to allow Large Page allocations. Consider making a separate user specifically for this policy, and making this the default user of the AudioEngineAllocator Service.
 9. Select OK.
-10. Restart the AudioEngineAllocator service.
 
 ## Contributing  
 
