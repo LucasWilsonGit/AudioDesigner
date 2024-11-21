@@ -26,8 +26,8 @@ namespace AudioEngine {
     class buffer_reader {
     private:
         std::unique_ptr<CharT> m_buffer;
-        size_t m_size;
-        size_t m_pos;
+        std::streamsize m_size;
+        std::streamoff m_pos;
         bool m_fail;
 
     protected:
@@ -39,11 +39,11 @@ namespace AudioEngine {
     
     public:
         explicit buffer_reader(CharT *buffer, size_t size) :
-            m_buffer(buffer), m_size(size), m_pos(0)
+            m_buffer(buffer), m_size(size), m_pos(0), m_fail(false)
         {}
 
         buffer_reader(std::unique_ptr<CharT> buffer, size_t size) :
-            m_buffer(std::move(buffer)), m_size(size), m_pos(0)
+            m_buffer(std::move(buffer)), m_size(size), m_pos(0), m_fail(false)
         {}
 
         buffer_reader& operator>>(std::basic_string<CharT>& word) {
@@ -53,7 +53,7 @@ namespace AudioEngine {
             while (m_pos < m_size && (curr_char() == '\r' || std::isspace(curr_char())))
                 ++m_pos;
             
-            size_t word_start_pos = m_pos;
+            std::streamoff word_start_pos = m_pos;
             
             while (m_pos < m_size && curr_char() != '\r' && !std::isspace(curr_char()))
                 ++m_pos;
@@ -72,19 +72,19 @@ namespace AudioEngine {
             return *this;
         }
 
-        [[nodiscard]] size_t tellg() const noexcept {
+        [[nodiscard]] std::streamoff tellg() const noexcept {
             return m_pos;
         }
 
-        void seekg(size_t pos) {
+        void seekg(std::streamoff pos) {
             if (pos <= m_size) {
                 m_pos = pos;
             } else
                 throw std::out_of_range(format("Provided pos {} was outside of file size {}", pos, m_size));
         }
 
-        void ignore(size_t count, CharT ignore) {
-            while (m_pos < m_size && curr_char() != ignore)
+        void ignore(std::streamoff count, CharT ignore) {
+            while (m_pos < m_size && curr_char() != ignore && count-- > 0)
                 ++m_pos;
         }
 
@@ -101,9 +101,9 @@ namespace AudioEngine {
     public:
         explicit cfg_parser_context(buffer_reader<CharT, Alignment>& input) : input(input), stack({input.tellg()}) {}
 
-        void push_pos() { stack.push_back(input.tellg()); std::cout << "push_pos " << (size_t)stack.back() << "\n"; }
+        void push_pos() { stack.push_back(input.tellg()); }
         void pop_pos() { input.seekg(stack.back()); stack.pop_back(); }
-        void success_pos() { std::cout << "Completed parse\n"; stack.pop_back(); }
+        void success_pos() { stack.pop_back(); }
         buffer_reader<CharT, Alignment>& reader() const noexcept { return input; }
     };
 
@@ -151,7 +151,6 @@ namespace AudioEngine {
             std::string value;
 
             if (!(input >> m_identifier >> value)) {
-                std::cout << "Didn't parse words\n";
                 return std::nullopt;
             }
             
@@ -185,34 +184,22 @@ namespace AudioEngine {
 
         template <class CharT, size_t Alignment>
         std::optional<ValueType> parse(cfg_parser_context<CharT, Alignment>& ctx) {
-            std::cout << format("Starting to parse {}\n", m_identifier);
             auto& input = ctx.reader();
             
             std::string start_input_tok;
             probe_input_cfg res;
 
             dsp_cfg_string_parser_impl str_parser;
-            
-            std::cout << format("{}: Try parse in marker tok\n", m_identifier);
-            //std::cout << "\n" << input.rdbuf() << "\n\n";
 
             if (!(input >> start_input_tok)) {
                 return std::nullopt;
             }
-            
-            std::cout << format("{}: Read line {}!\n", m_identifier, start_input_tok);
 
-            std::cout << format("{}: Test correct format `ProbeInput`\n", m_identifier);
             if (start_input_tok != "ProbeInput")
                 return std::nullopt;
-            
 
-            std::cout << format("Parsed in ProbeInput marker\n");
-
-            std::cout << format("Parsing ProbeService [1/2]\n");
             if (std::optional<std::string> service = str_parser.parse(ctx)) {
                 res.in_service = *service;
-                std::cout << format("Parsing ProbeService [2/2], read in service {} identifier {}\n", res.in_service, str_parser.identifier());
                 if (str_parser.identifier() != "ProbeService") {
                     return std::nullopt;
                 }
@@ -220,11 +207,9 @@ namespace AudioEngine {
             else {
                 return std::nullopt;
             }
-            std::cout << format("Parsed in ProbeService\n");
-            std::cout << format("Parsing in ProbeName [1/2]\n");
+
             if (std::optional<std::string> probe = str_parser.parse(ctx)) {
-                res.in_service = *probe;
-                std::cout << format("Parsing in ProbeName [2/2]\n");
+                res.in_probe = *probe;
                 if (str_parser.identifier() != "ProbeName") {
                     return std::nullopt;
                 }
@@ -232,8 +217,8 @@ namespace AudioEngine {
             else {
                 return std::nullopt;
             }
-            std::cout << format("Parsed in ProbeName\n");
-            return std::move(res);
+
+            return res;
         }
 
         std::string identifier() { return m_identifier; }
@@ -259,11 +244,11 @@ namespace AudioEngine {
 
         template <class Parser>
         bool try_parse_one(cfg_parser_context<CharT, Alignment>& ctx) {
+            
             auto& parser = std::get<Parser>(parsers);
 
             ctx.push_pos(); //save state before parse attempt
 
-            std::cout << "Try: " << parser.parser_type() << " parse\n";
             std::optional<typename Parser::ValueType> result = parser.parse(ctx);
             if (result.has_value()) {
                 

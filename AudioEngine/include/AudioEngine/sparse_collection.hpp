@@ -32,7 +32,7 @@ namespace AudioEngine {
 
         Alloc m_alloc;
         container_t m_values;
-        std::array<key_t, Capacity> alignas(16) m_keys;
+        std::array<key_t, Capacity> m_keys alignas(16);
 
         size_t get_new_key_idx() const {
             for (size_t i = 0; i < m_keys.size(); i++) {
