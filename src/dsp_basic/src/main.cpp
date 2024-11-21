@@ -43,10 +43,21 @@ int main() {
         else
             std::cout << "Failed to read CWD\n";
 
-        AudioEngine::dsp_cfg_parser< AudioEngine::dsp_cfg_bool_parser_impl > parser(std::string(currentDir) + "/conf.cfg");
+        AudioEngine::dsp_cfg_parser<char, 16,
+            AudioEngine::dsp_cfg_bool_parser_impl,
+            AudioEngine::dsp_cfg_monitor_input_parser_impl
+        > parser(std::string(currentDir) + "/conf.cfg");
         
         for (auto& e : parser.get_config_fields()) {
-            std::cout << e.first << "\n";
+
+            std::cout << e.first << " ";
+            std::visit([](auto& v) {
+                if constexpr (std::is_same_v<std::remove_cvref_t<decltype(v)>, bool>)
+                    std::cout << v << "\n";
+            }, e.second);
+
+            
+            
         }
     }
     catch (Net::net_error const& e) {

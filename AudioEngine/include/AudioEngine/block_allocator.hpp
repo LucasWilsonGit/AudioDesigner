@@ -42,6 +42,7 @@ namespace AudioEngine {
     class block_allocator : public base_alloc_traits<T> {
     public:
         using data_storage = block_allocator_data_storage<N>;
+        static constexpr size_t capacity = N;
     private:
 
         bool is_ptr_aligned(void* ptr, size_t alignment) {

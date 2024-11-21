@@ -78,4 +78,12 @@ if (TESTING_ENABLED)
 
         lib_add_test("sparse_collection_${sparse_test_name}" "${test_source}" SPARSE_TEST_LIBS)
     endforeach()
+
+    set(BUFFER_READER_TEST_LIBS AudioEngine)
+    file(GLOB_RECURSE BUFFER_READER_TEST_SOURCES "tests/buffer_reader/*.cpp")
+    foreach(test_source IN LISTS BUFFER_READER_TEST_SOURCES)
+        get_filename_component(buffer_reader_test_name ${test_source} NAME_WE)
+
+        lib_add_test("buffer_reader_${buffer_reader_test_name}" "${test_source}" BUFFER_READER_TEST_LIBS)
+    endforeach()
 endif()

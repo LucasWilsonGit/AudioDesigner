@@ -81,3 +81,9 @@ namespace Memory {
 namespace AudioEngine {
     REGISTER_AUDIOENGINE_ERROR(cfg_parse_error, AudioEngine::dsp_error);
 }
+
+namespace AudioEngine {
+    struct alignas(16) s16 {
+        uint64_t _a[2];
+    };
+}
