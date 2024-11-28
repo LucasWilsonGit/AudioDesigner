@@ -40,7 +40,7 @@ namespace AudioEngine {
         std::string m_err;
 
     public:
-        dsp_error(std::string&& err) : m_err(std::move(err)), std::runtime_error(err.c_str()) {}
+        dsp_error(std::string&& err) : std::runtime_error(err.c_str()), m_err(std::move(err)) {}
 
         char const* what() const noexcept { return m_err.c_str(); }
     };

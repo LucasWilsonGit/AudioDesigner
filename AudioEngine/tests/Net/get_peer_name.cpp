@@ -12,10 +12,6 @@
 #include <thread>
 #include <future>
 
-void client(Net::end_point const& dst) {
-    
-}
-
 int main() {
     Net::init();
     

@@ -5,7 +5,7 @@ set(AudioEngine_DIR "$CMAKE_CURRENT_SOURCE_DIR" PARENT_SCOPE)
 
 set_property(TARGET AudioEngine PROPERTY CXX_STANDARD 20) #C++ 20
 
-target_include_directories(AudioEngine PUBLIC include)
+target_include_directories(AudioEngine PUBLIC include "${CMAKE_CURRENT_SOURCE_DIR}/../ext")
 
 target_link_libraries(AudioEngine PUBLIC wepoll)
 
@@ -85,5 +85,13 @@ if (TESTING_ENABLED)
         get_filename_component(buffer_reader_test_name ${test_source} NAME_WE)
 
         lib_add_test("buffer_reader_${buffer_reader_test_name}" "${test_source}" BUFFER_READER_TEST_LIBS)
+    endforeach()
+
+    set(PERF_TEST_LIBS AudioEngine)
+    file(GLOB_RECURSE PERF_TEST_SOURCES "tests/perf/*.cpp")
+    foreach(test_source IN LISTS PERF_TEST_SOURCES)
+        get_filename_component(perf_test_name ${test_source} NAME_WE)
+
+        lib_add_test("perf_${perf_test_name}" "${test_source}" PERF_TEST_LIBS)
     endforeach()
 endif()

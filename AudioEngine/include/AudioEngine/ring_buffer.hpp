@@ -96,8 +96,7 @@ namespace AudioEngine {
                 if (length == 0)
                     throw std::runtime_error("trying to iterate 0 length range");
 
-                size_t idx = begin;
-                for (size_t offs = 0; offs < length; offs++) {
+                for (size_t offs = begin; offs < length; offs++) {
                     auto& elem = m_data[begin + offs];
                     c(elem);
                 }
@@ -115,6 +114,10 @@ namespace AudioEngine {
             return index & (N-1);
         }
 
+        /**
+         * Returns [left, right]
+         * left: Number of elements from m
+         */
         std::pair<size_t, std::optional<size_t>> get_wrap_counts() {
             if (m_count == 0) {
                 throw std::runtime_error("Attempt to find wrapped chunk lengths on an empty ringbuffer");

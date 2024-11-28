@@ -32,7 +32,7 @@ namespace AudioEngine {
         
 
         block_allocator_data_storage(uint8_t align, size_t esize)
-        :   alignment(align), elem_size(esize)
+        :   elem_size(esize), alignment(align)
         {
             markers.fill(0);
         }
@@ -46,7 +46,7 @@ namespace AudioEngine {
     private:
 
         bool is_ptr_aligned(void* ptr, size_t alignment) {
-            if (alignment & (alignment - 1) != 0) {
+            if ((alignment & (alignment - 1)) != 0) {
                 throw std::logic_error("Attempt to test ptr alignment to non power of two alignment parameter");
             }
             return (reinterpret_cast<uintptr_t>(ptr) & (alignment - 1)) == 0;
@@ -84,7 +84,6 @@ namespace AudioEngine {
     public:
 
         block_allocator(void* addr) {
-            uintptr_t uaddr = reinterpret_cast<uintptr_t>(addr);
             if (!is_ptr_aligned(addr, alignof(T)))
                 throw std::runtime_error("Attempt to initialize block allocator to incorrectly aligned memory");
                 

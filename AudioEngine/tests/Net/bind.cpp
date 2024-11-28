@@ -19,8 +19,8 @@ int main() {
     //THIS SHOULD FAIL! WE WANT IT TO FAIL! 
     try {
         //setup socket binding
-        auto ep2 = Net::get_sock_name(sock); //only works when we have a binding, else should error
-
+        volatile auto ep2 = Net::get_sock_name(sock); //only works when we have a binding, else should error
+        (void)ep2;
         return 1;
     }
     catch (Net::net_error const& e) {
@@ -33,7 +33,8 @@ int main() {
         sock = Net::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         Net::bind(sock, ep);
 
-        auto ep2 = Net::get_sock_name(sock); //only works when we have a binding, else should error
+        volatile auto ep2 = Net::get_sock_name(sock); //only works when we have a binding, else should error
+        (void)ep2;
         Net::close(sock);
     }
     catch (Net::net_error const& e) {

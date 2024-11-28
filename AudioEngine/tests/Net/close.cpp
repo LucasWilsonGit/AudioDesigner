@@ -24,7 +24,7 @@ int main() {
         auto ep2 = Net::get_sock_name(sock); //only works when we have a binding, else should error
         Net::close(sock);
 
-        std::cout << "Pass [should not fail] case\n";
+        std::cout << "Pass [should not fail] case\nRead ep2: " << ep2 << "\n";
     }
     catch (Net::net_error const& e) {
         Net::close(sock);

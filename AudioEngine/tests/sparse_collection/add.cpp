@@ -29,6 +29,8 @@ int main() {
     _=data.add(3);
     _=data.add(4);
 
+    (void)t;
+    
     if (serialize(data) != "1234") {
         throw std::runtime_error("sparse_collection storage did not match expected value (1234)");
     }

@@ -32,6 +32,7 @@ function(lib_add_test test_target test_source test_libs_indirect)
   add_executable(${test_target} ${test_source})
   set_property(TARGET ${test_target} PROPERTY CXX_STANDARD 20) #C++ 20
   target_link_libraries(${test_target} PUBLIC "${${test_libs_indirect}}") #unpack test libs indirect into link libraries
+  target_compile_options(${test_target} PRIVATE -Wall -Wextra -O3 -mavx2)
   set_target_properties( ${test_target}
     PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"

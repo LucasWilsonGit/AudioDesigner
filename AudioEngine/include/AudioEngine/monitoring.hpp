@@ -53,9 +53,9 @@ namespace AudioEngine {
 
         public:
             probe(char const *name, probe_metadata *meta, datapoint_alloc_t& allocator) :
-                m_collection(allocator),
                 m_name(name),
-                m_metadata(meta)
+                m_metadata(meta),
+                m_collection(allocator)
             {}
 
             probe_metadata const *get_metadata() const noexcept { return m_metadata; }
