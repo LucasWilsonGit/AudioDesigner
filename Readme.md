@@ -29,7 +29,10 @@ This requires a user account be configured to run the allocator service, which w
 
 ## Contributing  
 
-Please don't.
+Fork the repository and create a new branch for your work.
+Make changes with clear code comments explaining your approach. Try to follow existing conventions in the code.
+Open a PR into main linking any related issues. Provide context on changes.
+I will review PRs when possible. Please be patient. Once approved, code will be merged.
 
 ## License  
 
