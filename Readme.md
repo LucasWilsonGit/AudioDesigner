@@ -38,4 +38,4 @@ I will review PRs when possible. Please be patient. Once approved, code will be 
 
 Licenses for dependencies will be inside the dependency repos when they are fetched. A jumbo SLA will be generated in the CMake build tree for your convenience. Inability to source a license for any dependencies will cause the build to fail.
 
-This repo is private. Do not take, copy, use or modify this code. 
+This project is licensed under the polyform strict license.
