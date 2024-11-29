@@ -3,6 +3,9 @@
 #include "AudioEngine/core.hpp"
 #include "AudioEngine/buffer_reader.hpp"
 
+#include <vector>
+#include <string>
+#include <ios>
 
 
 
@@ -151,37 +154,39 @@ namespace AudioEngine {
         std::vector<cfg_pair_t> m_cfg_fields;
     
     public:
-        dsp_cfg(std::vector<cfg_pair_t>&& in_fields) 
-        :   m_cfg_fields(std::move(in_fields)) 
+        dsp_cfg() 
+        :   m_cfg_fields(16) 
         {}
 
         template <class Type>
-        [[nodiscard]] Type& get(std::string const& str) const {
-            for (auto& e : m_cfg_fields) {
-                if (e.first == str) {
-                    return std::get<Type>(e.second);
-                }
-            }
-        }
-
-        template <class Type>
-        [[nodiscard]] Type& get(std::string_view const& view) const {
+        [[nodiscard]] Type const& get(std::string_view const& view) const {
             for (auto& e : m_cfg_fields) {
                 if (e.first == view) {
                     return std::get<Type>(e.second);
                 }
             }
+            throw dsp_error(format("Failed to find field {}\n", view));
+        }
+
+        void add_field(std::string str, std::variant<typename Parsers::ValueType...> val) {
+            m_cfg_fields.emplace_back(std::move(str), std::move(val));
+        }
+
+        void sort() {
+            //sort the config fields alphabetically by their identifiers
+            std::sort(m_cfg_fields.begin(), m_cfg_fields.end(), [](const auto& a, const auto& b) { return a.first < b.first; }); 
         }
     };
 
     template <class CharT, size_t Alignment, dsp_cfg_parser_impl<CharT, Alignment>... Parsers>
     class dsp_cfg_parser {
-    private:
-        std::tuple<Parsers...> parsers;
+    public:
         using cfg_pair_t = std::pair<std::string, std::variant<typename Parsers::ValueType...>>;
-
+        using dsp_cfg_t = dsp_cfg<CharT, Alignment, Parsers...>;
+    private:
+        std::tuple<Parsers...> parsers; //default constructs Parsers...
         std::ifstream m_file;
-        std::vector<cfg_pair_t> m_cfg_fields;
+        dsp_cfg_t m_cfg;
 
         struct alignas(Alignment) aligned_block {
             char s[Alignment];
@@ -198,7 +203,7 @@ namespace AudioEngine {
             std::optional<typename Parser::ValueType> result = parser.parse(ctx);
             if (result.has_value()) {
                 
-                m_cfg_fields.emplace_back(parser.identifier(), std::move(*result));
+                m_cfg.add_field(parser.identifier(), std::move(*result));
                 ctx.success_pos();
                 return true;
             }
@@ -215,9 +220,7 @@ namespace AudioEngine {
     public:
         using cfg_storage_t = std::vector<cfg_pair_t>;
 
-        
-
-        explicit dsp_cfg_parser(std::string const& path) {
+        dsp_cfg_parser(std::string const& path) {
 
             std::ifstream bfile(path, std::ios::binary | std::ios::ate);
             if (!bfile.is_open())
@@ -248,14 +251,11 @@ namespace AudioEngine {
                 }
             }
 
-            //sort the config fields alphabetically by their identifiers
-            std::sort(m_cfg_fields.begin(), m_cfg_fields.end(), [](const auto& a, const auto& b) { return a.first < b.first; }); 
+            m_cfg.sort();
         }
 
-        std::vector<cfg_pair_t> const& get_config_fields() const noexcept { 
-            return m_cfg_fields;
+        dsp_cfg_t const& get_config() const noexcept {
+            return m_cfg;
         }
-
-        
     };
 }

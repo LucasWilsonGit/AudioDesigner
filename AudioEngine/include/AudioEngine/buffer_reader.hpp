@@ -63,6 +63,27 @@ namespace AudioEngine {
             return *this;
         }
 
+        buffer_reader& operator>>(int64_t& dst) {
+            while (m_pos < m_size && !std::isdigit(curr_char()) )
+                ++m_pos;
+
+            std::streamoff word_start_pos = m_pos;
+
+            while (m_pos < m_size && std::isdigit(curr_char()) )
+                ++m_pos;
+
+            if (m_pos < word_start_pos) [[unlikely]] //overflow
+                throw std::runtime_error("internal counter overflow during file read (big file?)");
+            
+            std::string_view slice( &get_char(word_start_pos), m_pos - word_start_pos);
+            
+            std::from_chars_result res = std::from_chars(slice.data(), slice.data() + slice.size(), dst);
+            if (res.ec == std::errc::invalid_argument || res.ec == std::errc::result_out_of_range)
+                m_fail = true;
+            
+            return *this;
+        }
+
         [[nodiscard]] std::streamoff tellg() const noexcept {
             return m_pos;
         }

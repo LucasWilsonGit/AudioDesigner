@@ -26,10 +26,11 @@ std::string get_cwd() {
 auto load_config(std::string const& path) {
     AudioEngine::dsp_cfg_parser<char, 16,
             AudioEngine::dsp_cfg_bool_parser_impl,
-            AudioEngine::dsp_cfg_monitor_input_parser_impl
+            AudioEngine::dsp_cfg_monitor_input_parser_impl,
+            AudioEngine::dsp_cfg_int64_parser_impl
         > parser(path);
 
-    return parser.get_config_fields();
+    return parser.get_config();
 }
 
 std::vector<ma_device_info> get_playout_devices(ma_context& context) {
@@ -253,10 +254,11 @@ int main() {
     
         auto config = load_config(get_cwd() + "/conf.cfg");
 
-        
+        int64_t cfg_sample_rate = config.get<int64_t>("PlayoutSampleRate");
+        int64_t cfg_channels = config.get<int64_t>("PlayoutChannels");
+        int64_t cfg_loop_ms = config.get<int64_t>("LoopDurationMs");
 
-
-
+        std::cout << format("Play {}ms of {} channel audio at {} Hz\n", cfg_loop_ms, cfg_channels, cfg_sample_rate);
 
 
 
