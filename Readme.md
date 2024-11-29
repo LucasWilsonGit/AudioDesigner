@@ -1,6 +1,6 @@
 
 # AudioDesigner  
-Robust DSP chain framework with multiple premade effects and basic miniaudio based IO.
+Microservice style audio processing framework I'm working on.
 
 ## Run Locally  
 
