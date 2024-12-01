@@ -1,6 +1,6 @@
 
 # AudioDesigner  
-Robust DSP chain framework with multiple premade effects and basic miniaudio based IO.
+Microservice style audio processing framework I'm working on.
 
 ## Run Locally  
 
@@ -49,10 +49,13 @@ This requires a user account be configured to run the allocator service, which w
 
 ## Contributing  
 
-Please don't.
+Fork the repository and create a new branch for your work.
+Make changes with clear code comments explaining your approach. Try to follow existing conventions in the code.
+Open a PR into main linking any related issues. Provide context on changes.
+I will review PRs when possible. Please be patient. Once approved, code will be merged.
 
 ## License  
 
 Licenses for dependencies will be inside the dependency repos when they are fetched. A jumbo SLA will be generated in the CMake build tree for your convenience. Inability to source a license for any dependencies will cause the build to fail.
 
-This repo is private. Do not take, copy, use or modify this code. 
+This project is licensed under the polyform strict license.
