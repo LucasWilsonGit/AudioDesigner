@@ -41,6 +41,8 @@ namespace AudioEngine {
         buffer_reader& operator>>(std::basic_string<CharT>& word) {
             word.clear();
 
+            
+
             while (m_pos < m_size && (curr_char() == '\r' || std::isspace(curr_char())))
                 ++m_pos;
             
@@ -57,10 +59,22 @@ namespace AudioEngine {
 
             word += slice;
 
+            std::cout << format("{} found {}\n", "Parse string", word);
+
             if (word.empty())
                 m_fail = true;
 
             return *this;
+        }
+
+        __attribute__((noinline)) buffer_reader& operator>>(std::optional<std::basic_string<CharT>>& oword) {
+            std::basic_string<CharT> s;
+            auto& res = (*this >> s);
+            oword = s;
+
+            std::cout << format("Parse optional string, found {}\n", s);
+
+            return res;
         }
 
         buffer_reader& operator>>(int64_t& dst) {
@@ -78,10 +92,18 @@ namespace AudioEngine {
             std::string_view slice( &get_char(word_start_pos), m_pos - word_start_pos);
             
             std::from_chars_result res = std::from_chars(slice.data(), slice.data() + slice.size(), dst);
+            
             if (res.ec == std::errc::invalid_argument || res.ec == std::errc::result_out_of_range)
                 m_fail = true;
             
             return *this;
+        }
+
+        buffer_reader& operator>>(std::optional<int64_t>& dst) {
+            int64_t v = 0;
+            auto& res = (*this >> v);
+            dst = v;
+            return res;
         }
 
         [[nodiscard]] std::streamoff tellg() const noexcept {
@@ -98,6 +120,10 @@ namespace AudioEngine {
         void ignore(std::streamoff count, CharT ignore) {
             while (m_pos < m_size && curr_char() != ignore && count-- > 0)
                 ++m_pos;
+        }
+
+        void clear_fail() noexcept {
+            m_fail = false;
         }
 
         explicit operator bool() {

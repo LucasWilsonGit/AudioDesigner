@@ -1,3 +1,5 @@
+
+
 #include "AudioEngine/sockapi.hpp"
 #include "AudioEngine/address.hpp"
 #include "AudioEngine/shm.hpp"
@@ -5,14 +7,19 @@
 #include "AudioEngine/dsp.hpp"
 #include "AudioEngine/config.hpp"
 
+#include "AudioEngine/buffers/pcm_buffer.hpp"
+#include "AudioEngine/buffers/circular_streams.hpp"
+
 #include <winsock2.h>
 #define MINIAUDIO_IMPLEMENTATION
-#include "miniaudio/miniaudio.h"
+#include "AudioEngine/miniaudio_utils.hpp"
 
 #include <iostream>
 #include <limits>
 #include <variant>
 #include <numbers>
+
+
 
 std::string get_cwd() {
     char currentDir[MAX_PATH];
@@ -27,7 +34,8 @@ auto load_config(std::string const& path) {
     AudioEngine::dsp_cfg_parser<char, 16,
             AudioEngine::dsp_cfg_bool_parser_impl,
             AudioEngine::dsp_cfg_monitor_input_parser_impl,
-            AudioEngine::dsp_cfg_int64_parser_impl
+            AudioEngine::dsp_cfg_int64_parser_impl,
+            AudioEngine::dsp_cfg_string_parser_impl
         > parser(path);
 
     return parser.get_config();
@@ -37,9 +45,7 @@ std::vector<ma_device_info> get_playout_devices(ma_context& context) {
     ma_device_info *out_devices;
     ma_uint32 out_device_count = 0;
 
-    if (ma_context_get_devices(&context, &out_devices, &out_device_count, nullptr, nullptr) != MA_SUCCESS) {
-        throw AudioEngine::dsp_error("Failed to retrieve device infos from miniaudio context");
-    }
+    AudioEngine::ma_call(ma_context_get_devices(&context, &out_devices, &out_device_count, nullptr, nullptr));
 
     std::vector<ma_device_info> res(out_device_count);
     for (ma_uint32 i = 0; i < out_device_count; i++) {
@@ -51,158 +57,13 @@ std::vector<ma_device_info> get_playout_devices(ma_context& context) {
 
 
 
-template <class T>
-concept dsp_buffer = requires (T const& readable, T& writable, std::span<typename T::ValueType> data, size_t offs, size_t len) {
-    typename T::ValueType; //T must have ::ValueType
-    { readable.get(offs) } -> std::same_as<typename T::ValueType&>;
-    { readable.view(offs, len) } -> std::same_as<std::span<typename T::ValueType>>;
-    { writable.store(data) } -> std::same_as<void>;
-    { writable.store(offs, data) } -> std::same_as<void>;
-};
 
-template <class SampleType, class Allocator = std::allocator<SampleType>>
-class pcm_buffer {
-public:
-    using Alloc_T = typename std::allocator_traits<Allocator>::rebind_alloc<SampleType>;
-    using ValueType = SampleType;
-private:
-    std::optional<Alloc_T> m_allocator;
-    SampleType *m_buffer;
-    ma_uint32 m_channels;
-    ma_uint32 m_frame_count;
-    size_t m_size;
-    
-public:
 
-    pcm_buffer(ma_uint32 channels, ma_uint32 frame_count, Alloc_T const& alloc)
-    :   m_allocator(alloc),
-        m_buffer(m_allocator.allocate(channels * frame_count)),
-        m_channels(channels),
-        m_frame_count(frame_count),
-        m_size(m_channels * m_frame_count)
-    {}
 
-    ValueType& get(size_t offset) const {
-        if (offset >= m_size) [[unlikely]]
-            throw std::runtime_error("Offset outside of buffer");
-        return m_buffer[offset];
-    }
-
-    std::span<ValueType> view(size_t offset, size_t length) const {
-        if ((offset + length) >= m_size)
-            throw AudioEngine::dsp_error(format("view from {} to {} would exceed buffer ({} samples)", offset, offset + length, m_size));
-        return std::span<ValueType>(m_buffer[offset], m_buffer[offset+length]);
-    }
-
-    void store(size_t offset, std::span<ValueType> const& data) {
-        if constexpr (std::is_trivially_constructible_v<ValueType>) {
-            std::memcpy(&m_buffer[offset], data.data(), data.size_bytes());
-        }
-        else {
-            if (offset + data.size() >= m_size)
-                throw std::out_of_range("offset + data.size() >= m_size");
-
-            size_t counter = 0;
-            for (auto& elem : data) {
-                m_buffer[offset + counter] = std::move(elem);
-            }
-        }
-    }
-
-    void store(std::span<ValueType> const& data) {
-        store(0, data);
-    }
-
-    [[nodiscard]] size_t size() const noexcept {
-        return m_size;
-    }
-
-    SampleType *data() const noexcept { return m_buffer; }
-};
-
-template <dsp_buffer BufferT>
-class circular_buffer_writer {
-    BufferT& m_buffer;
-    std::streampos m_pos;
-
-    using ValueType = typename BufferT::ValueType;
-public:
-    circular_buffer_writer(BufferT& buff)
-    :   m_buffer(buff),
-        m_pos(0)
-    {}
-
-    circular_buffer_writer<BufferT>& operator<<(ValueType const& v) {
-        m_buffer.get(m_pos) = v;
-        m_pos = (m_pos + 1) % m_buffer.size();
-
-        return *this;
-    }
-
-    circular_buffer_writer<BufferT>& operator<<(std::span<ValueType> const& v) {
-        ValueType *data = m_buffer.data();
-
-        int64_t headroom = m_buffer.size() - m_pos;
-
-        size_t left = std::min(headroom, v.size());
-        std::memcpy( &m_buffer.get(m_pos), v.data(), left );
-
-        size_t right = v.size() - left;
-        std::memcpy( m_buffer.data(), &v[left], right);
-
-        return *this;
-    }
-
-    [[nodiscard]] operator bool() const noexcept {
-        return true;
-    }
-};  
-
-template <dsp_buffer BufferT>
-class circular_buffer_reader {
-    BufferT const& m_buffer;
-    std::streampos m_pos;
-
-    using ValueType = typename BufferT::ValueType;
-public:
-    circular_buffer_reader(BufferT const& buff)
-    :   m_buffer(buff),
-        m_pos(0)
-    {}
-
-    circular_buffer_reader<BufferT>& operator>>(ValueType& dst) {
-        dst = m_buffer.get(m_pos);
-        m_pos = (m_pos + 1) % m_buffer.size(); 
-        return *this;
-    }
-
-    circular_buffer_reader<BufferT>& operator>>(std::span<ValueType>& dst) {
-        ValueType *data = m_buffer.data();
-        std::span<ValueType> dataspan = std::span<ValueType>(data, m_buffer.size());
-
-        int64_t headroom = m_buffer.size() - m_pos;
-
-        size_t left = std::min((uint64_t)headroom, dst.size());
-        auto leftspan = dataspan.first(left);
-        std::memcpy(dst.data(), leftspan.data(), leftspan.size());
-
-        size_t right = dst.size() - left;
-        if (right > 0) {
-            auto rightspan = dataspan.subspan(left, right);
-            std::memcpy(&dst[left], rightspan.data(), rightspan.size());
-        }
-
-        return *this;
-    }
-
-    [[nodiscard]] operator bool() const noexcept {
-        return true;
-    }
-};
 
 using sample_t = int16_t;
-using pcm_buff_t = pcm_buffer<sample_t, std::allocator<sample_t>>;
-using pcm_buff_reader_t = circular_buffer_reader<pcm_buff_t>;
+using pcm_buff_t = AudioEngine::pcm_buffer<sample_t, std::allocator<sample_t>>;
+using pcm_buff_reader_t = AudioEngine::circular_buffer_reader<pcm_buff_t>;
 
 struct play_data_callback_userdata {
     pcm_buff_reader_t in_pcm_stream;
@@ -220,14 +81,33 @@ void play_data_callback(ma_device *p_device, void *p_output, void const *p_input
     }
 }
 
-void generate_sin_wave(int16_t *buffer, size_t sample_count) {
-    int16_t *abuffer = std::assume_aligned<32>(buffer);
-
-    for (size_t i = 0; i < sample_count; i++) {
-        float ts = i/48000;
-        abuffer[i] = (int16_t)(std::numeric_limits<int16_t>::max() * sin(ts * std::numbers::pi));
-    }
+sample_t sin_at_sample(size_t sample_idx, size_t sample_rate, size_t hertz) {
+    float ts = sample_idx / (float)sample_rate;
+    return (sample_t)(std::numeric_limits<sample_t>::max() * sin(ts * std::numbers::pi * hertz));
 }
+
+void generate_sin_wave(sample_t *buffer, size_t frame_count, size_t sample_rate, int64_t channel_count, size_t hertz) {
+    sample_t *abuffer = std::assume_aligned<32>(buffer);
+
+    int count = 0;
+    for (size_t i = 0; i < frame_count; i++) {
+
+        sample_t val = sin_at_sample(i, sample_rate, hertz);
+        
+        for (int j = 0; j < channel_count; j++) {
+            buffer[i*channel_count+j] = val;
+        }
+        count += channel_count;
+    }
+
+    std::cout << format("Generated {} samples\n", count);
+}
+
+
+
+
+
+
 
 int main() {
     //If this fails then we might as well just exit.
@@ -257,41 +137,74 @@ int main() {
         int64_t cfg_sample_rate = config.get<int64_t>("PlayoutSampleRate");
         int64_t cfg_channels = config.get<int64_t>("PlayoutChannels");
         int64_t cfg_loop_ms = config.get<int64_t>("LoopDurationMs");
+        bool cfg_output_file_enabled = config.get<bool>("DbgAudioOutputEnabled");
+        std::string cfg_output_file = config.get<std::string>("DbgAudioOutput");
+        int64_t cfg_duration_ms = config.get<int64_t>("SessionDurationMs");
 
         std::cout << format("Play {}ms of {} channel audio at {} Hz\n", cfg_loop_ms, cfg_channels, cfg_sample_rate);
 
+        pcm_buff_t buffer(cfg_channels, cfg_sample_rate / 1000 * cfg_loop_ms, std::allocator<sample_t>());
+        auto writer = AudioEngine::circular_buffer_writer(buffer);
 
+        size_t monosize = (cfg_loop_ms  * cfg_sample_rate) / 1000;
+        size_t blockcount = 100;
+        size_t blocksize = (cfg_channels * monosize) / blockcount;
 
+        sample_t *buf = new sample_t[monosize * cfg_channels];
+        generate_sin_wave(buf, monosize, cfg_sample_rate, cfg_channels, 480);
+        std::cout << format("monosize {} channels {}\n", monosize, cfg_channels);
+        writer << std::span<sample_t>(buf, monosize * cfg_channels);
+        delete[] buf;
 
-        ma_context context;
-
-        if ( ma_context_init(NULL, 0, NULL, &context) != MA_SUCCESS) {
-            throw AudioEngine::dsp_error("Failed to load miniaudio context");
+        //write buf into file if enabled in the configuration
+        if (cfg_output_file_enabled) {
+            std::ios_base::sync_with_stdio(false);
+            auto myfile = std::fstream(cfg_output_file, std::ios::out | std::ios::binary);
+            myfile.write((char*)buffer.data(), buffer.size_bytes());
+            myfile.close();
         }
+
+
+
+
+
+
+
+
+
+
+
+        ma_context *ctx = new ma_context();
+        AudioEngine::ma_call(ma_context_init(NULL, 0, NULL, ctx));
+        AudioEngine::ma_wrapper<ma_context, ma_context_uninit> context(ctx);
 
         auto playout_devices = get_playout_devices(context);
         for (auto& device_info : playout_devices) {
             std::cout << format("{}\n", device_info.name);
         }
 
+        play_data_callback_userdata data{
+            .in_pcm_stream = pcm_buff_reader_t(buffer)
+        };
+
         ma_device_config cfg = ma_device_config_init(ma_device_type_playback);
         cfg.playback.format = ma_format_s16;
-        cfg.playback.channels = 2;
+        cfg.playback.channels = cfg_channels;
         cfg.playback.pDeviceID = &playout_devices[0].id;
-        cfg.sampleRate = 48000;
+        cfg.sampleRate = cfg_sample_rate;
         cfg.dataCallback = play_data_callback;
-        cfg.pUserData = nullptr;
+        cfg.pUserData = &data;
 
-        ma_context_uninit(&context);
+        ma_device *_out_device = new ma_device();
+        AudioEngine::ma_call(ma_device_init(context, &cfg, _out_device));
+        AudioEngine::ma_wrapper<ma_device, ma_device_uninit> out_device(_out_device);
 
+        AudioEngine::ma_call(ma_device_start(out_device));
 
+        Sleep(cfg_duration_ms);
 
-
-
-
-
-
-
+        //cleanup unneeded, the wrapper dtors clean up my mess 
+        //deconstructed in reverse order of construction means I dont need to worry about ordering
 
     }
     catch (Net::net_error const& e) {

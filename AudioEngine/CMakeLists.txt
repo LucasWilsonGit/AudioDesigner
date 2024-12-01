@@ -9,6 +9,8 @@ target_include_directories(AudioEngine PUBLIC include "${CMAKE_CURRENT_SOURCE_DI
 
 target_link_libraries(AudioEngine PUBLIC wepoll)
 
+target_compile_options(AudioEngine PRIVATE -g)
+
 add_subdirectory(src)
 
 # Define a function to generalize the test setup process
@@ -46,20 +48,21 @@ if (TESTING_ENABLED)
         endforeach()
     endif()
 
-    if (RINGBUFFER_TESTING)
-
-        #test net stuff here
-        set(RB_TEST_LIBS AudioEngine)
-
-        file(GLOB_RECURSE RB_TEST_SOURCES "tests/ring_buffer/*.cpp")
-
-        foreach(test_source IN LISTS RB_TEST_SOURCES)
-            get_filename_component(rb_test_name ${test_source} NAME_WE)
-
-            lib_add_test("ring_buffer_${rb_test_name}" "${test_source}" RB_TEST_LIBS)
-        endforeach()
-
-    endif()
+    
+#    if (RINGBUFFER_TESTING)
+#
+#        #test net stuff here
+#        set(RB_TEST_LIBS AudioEngine)
+#
+#        file(GLOB_RECURSE RB_TEST_SOURCES "tests/ring_buffer/*.cpp")
+#
+#        foreach(test_source IN LISTS RB_TEST_SOURCES)
+#            get_filename_component(rb_test_name ${test_source} NAME_WE)#
+#
+#            lib_add_test("ring_buffer_${rb_test_name}" "${test_source}" RB_TEST_LIBS)
+#        endforeach()
+#
+#    endif()
 
 
     
@@ -93,5 +96,13 @@ if (TESTING_ENABLED)
         get_filename_component(perf_test_name ${test_source} NAME_WE)
 
         lib_add_test("perf_${perf_test_name}" "${test_source}" PERF_TEST_LIBS)
+    endforeach()
+
+    set(CONFIG_TEST_LIBS AudioEngine)
+    file(GLOB_RECURSE CONFIG_TEST_SOURCES "tests/config/*.cpp")
+    foreach(test_source IN LISTS CONFIG_TEST_SOURCES)
+        get_filename_component(config_test_name ${test_source} NAME_WE)
+
+        lib_add_test("config_${config_test_name}" "${test_source}" CONFIG_TEST_LIBS)
     endforeach()
 endif()

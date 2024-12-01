@@ -5,14 +5,8 @@
  * @date    07/10/2024
  * @brief   Provides a platform independent interface for mapping named memory
  */
-#ifdef _WIN32
 
-    using map_handle_t = void*;
-#else
-    #include <sys/mman.h>
-
-    using map_handle_t = void*;
-#endif
+using map_handle_t = void*;
 
 #include <memory>
 #include <concepts>

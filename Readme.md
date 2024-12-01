@@ -4,12 +4,32 @@ Robust DSP chain framework with multiple premade effects and basic miniaudio bas
 
 ## Run Locally  
 
-Requires a CMake version compatible with FetchDependency and  some other modern CMake features. Recommended CMake 3.15
+Requires at least CMake 3.15 
+Currently I have only implemented memory mapping on Windows, need to look into libhugetlbfs
+Enabling large pages in the group policy will be necessary
+Configuring the project should pull and patch any external dependencies
+Currently it is necessary to build with --target-clean. I am still looking into why but it's low priority for me currently since build times are still quick.
+
+dsp_basic expects a conf.cfg file in the _build folder. 
+
+Here is a template for it until I set up binaries being output to the _install folder and put conf.cfg into the dsp_basic directory to be installed to the _install folder:
+
+#### conf.cfg
+~~~  
+  PlayoutSampleRate   48000
+  PlayoutChannels     2
+  LoopDurationMs      125
+  DbgAudioOutputEnabled false
+  DbgAudioOutput      BinaryPCM.dat
+  SessionDurationMs   10000
+~~~  
+
 
 #### Enabling gpedit.msc on Windows:
 
 Run the following two commands in sequence:
 `FOR %F IN ("%SystemRoot%\servicing\Packages\Microsoft-Windows-GroupPolicy-ClientTools-Package~*.mum") DO (DISM /Online /NoRestart /Add-Package:"%F")`
+
 `FOR %F IN ("%SystemRoot%\servicing\Packages\Microsoft-Windows-GroupPolicy-ClientExtensions-Package~*.mum") DO (DISM /Online /NoRestart /Add-Package:"%F")`
 
 #### Enabling Large pages on Windows:

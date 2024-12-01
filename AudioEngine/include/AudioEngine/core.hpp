@@ -6,6 +6,11 @@
 #include <concepts>
 #include <format>
 #include <cmath>
+#include <iostream>
+#include <memory>
+
+
+#include "miniaudio/miniaudio.h"
 
 /**
  * @brief A non-owning pointer to some externally managed resource which may be deallocated whilst this weak handle is held
@@ -28,10 +33,24 @@ auto ceil_div(T const& l, T const& r) {
     return (l + r-1) / r;
 }
 
+constexpr bool is_power_of_two(size_t n) {
+    return (n!=0) && ((n & (n-1)) == 0);
+}
+
 // Helper to create overloads
 template<class... Ts> struct overloads : Ts... { using Ts::operator()...; };
 // Deduction guide for overloads
 template<class... Ts> overloads(Ts...) -> overloads<Ts...>;
+
+template <auto *funcptr_inst>
+struct function_ptr_traits {};
+
+template <class ReturnType, class... ArgTypes, auto (*funcptr_inst)(ArgTypes...) -> ReturnType>
+struct function_ptr_traits<funcptr_inst> {
+    using arg_types = std::tuple<ArgTypes...>;
+    using return_type = ReturnType;
+};
+
 
 namespace AudioEngine {
     //base error type for AudioEngine
@@ -80,9 +99,7 @@ namespace Memory {
 
 namespace AudioEngine {
     REGISTER_AUDIOENGINE_ERROR(cfg_parse_error, AudioEngine::dsp_error);
-}
 
-namespace AudioEngine {
     struct alignas(16) s16 {
         uint64_t _a[2];
     };

@@ -6,6 +6,7 @@
 #include <vector>
 #include <string>
 #include <ios>
+#include <algorithm>
 
 
 
@@ -49,7 +50,7 @@ namespace AudioEngine {
         template <class CharT, size_t Alignment>
         std::optional<ValueType> parse(cfg_parser_context<CharT, Alignment>& ctx) {
             std::string identifier;
-            T value;
+            std::optional<T> value;
 
             if (!(ctx.reader() >> m_identifier >> value))
                 return std::nullopt;
@@ -155,8 +156,10 @@ namespace AudioEngine {
     
     public:
         dsp_cfg() 
-        :   m_cfg_fields(16) 
-        {}
+        :   m_cfg_fields() 
+        {
+            m_cfg_fields.reserve(16);
+        }
 
         template <class Type>
         [[nodiscard]] Type const& get(std::string_view const& view) const {
@@ -199,9 +202,13 @@ namespace AudioEngine {
             auto& parser = std::get<Parser>(parsers);
 
             ctx.push_pos(); //save state before parse attempt
+            ctx.reader().clear_fail();
+            
 
             std::optional<typename Parser::ValueType> result = parser.parse(ctx);
+            std::cout << format("Try parse {} at pos {} got {}\n", parser.parser_type(), (int64_t)ctx.reader().tellg(), parser.identifier());
             if (result.has_value()) {
+                std::cout << "Has value!\n";
                 
                 m_cfg.add_field(parser.identifier(), std::move(*result));
                 ctx.success_pos();
@@ -220,6 +227,19 @@ namespace AudioEngine {
     public:
         using cfg_storage_t = std::vector<cfg_pair_t>;
 
+        dsp_cfg_parser(std::unique_ptr<CharT> buffer, size_t buff_size) {
+            buffer_reader<CharT, Alignment> reader(std::move(buffer), buff_size);
+            cfg_parser_context context = cfg_parser_context(reader);
+
+            while (reader) {
+                if (!try_parse_all(context)) {
+                    reader.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); //Skip the current line
+                }
+            }
+
+            m_cfg.sort();
+        }
+
         dsp_cfg_parser(std::string const& path) {
 
             std::ifstream bfile(path, std::ios::binary | std::ios::ate);
@@ -228,11 +248,11 @@ namespace AudioEngine {
             
             size_t buffsize = static_cast<size_t>(bfile.tellg());
 
-            //this would not be nececssary if std::aligned_alloc would work but GCC do not want to be standards compliant here, or something... I am not happy.
+            //this would not be nececssary if std::aligned_alloc would work
             auto alloc = block_allocator<aligned_block, 4096>(new aligned_block[ 4096 ]);
-            block_allocator<char, 4096> ralloc(alloc); //now we can allocate chars on a ${Alignment}byte alignment
+            block_allocator<CharT, 4096> ralloc(alloc); //now we can allocate chars on a ${Alignment}byte alignment
 
-            std::unique_ptr<char> file_buffer( ralloc.allocate(buffsize) );
+            std::unique_ptr<CharT> file_buffer( ralloc.allocate(buffsize) );
             if (!file_buffer)
                 throw Memory::memory_error(format("Failed to allocate {} bytes of {} byte aligned memory.", buffsize, Alignment));
             
@@ -242,7 +262,7 @@ namespace AudioEngine {
 
 
 
-            buffer_reader<char, Alignment> reader(std::move(file_buffer), buffsize);
+            buffer_reader<CharT, Alignment> reader(std::move(file_buffer), buffsize);
             cfg_parser_context context = cfg_parser_context(reader);
 
             while (reader) {
