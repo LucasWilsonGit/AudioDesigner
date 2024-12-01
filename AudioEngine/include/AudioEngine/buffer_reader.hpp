@@ -78,7 +78,7 @@ namespace AudioEngine {
         }
 
         buffer_reader& operator>>(int64_t& dst) {
-            while (m_pos < m_size && !std::isdigit(curr_char()) )
+            while (m_pos < m_size && std::isspace(curr_char()) ) 
                 ++m_pos;
 
             std::streamoff word_start_pos = m_pos;
