@@ -4,28 +4,17 @@ Microservice style audio processing framework I'm working on.
 
 ## Run Locally  
 
-Requires at least CMake 3.15 
+Requires at least CMake 3.25 
 
 Currently I have only implemented memory mapping on Windows, need to look into libhugetlbfs
 Enabling large pages in the group policy will be necessary
 Configuring the project should pull and patch any external dependencies
 Currently it is necessary to build with --target-clean. I am still looking into why but it's low priority for me currently since build times are still quick.
 
-dsp_basic expects a conf.cfg file in the cwd. 
-
-Here is a template for it until I set up binaries being output to the _install folder and put conf.cfg into the dsp_basic directory to be installed to the _install folder:
+dsp_basic expects a conf.cfg file in the cwd. A conf.cfg will be copied into the build dir automatically during configuration, so just running dsp_basic from the build dir should be sufficient.
 
 the binary for dsp_basic can be found in ${CMAKE_BINARY_DIR}/src/dsp_basic/
-
-#### conf.cfg
-~~~  
-   PlayoutSampleRate   48000
-   PlayoutChannels     2
-   LoopDurationMs      125
-   DbgAudioOutputEnabled false
-   DbgAudioOutput      BinaryPCM.dat
-   SessionDurationMs   10000
-~~~  
+conf.cfg for dsp_basic can be found in ./src/dsp_basic/
 
 #### How to build
 
@@ -37,8 +26,6 @@ If output warnings/errors are badly formatted it may be necessary to decrease th
    cmake .. -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc -DCMAKE_BUILD_TYPE=RelWithDebInfo
    cmake --build . --clean-first -j24
 ~~~
-
-If the project configuring stage fails due to /ext add_subdirectory, just run it again. 
 
 #### Enabling gpedit.msc on Windows:
 
