@@ -123,7 +123,7 @@ int main() {
         >;
 
         shm_t shm("256mb_storage_dsp_basic", PAGE_READWRITE);
-        AudioEngine::Monitoring::probe_service service(shm.data(), shm_t::page_size);
+        AudioEngine::Monitoring::probe_service service(shm.data(), shm_t::page_size); //uses slightly under ~2MB of data which should be one page
         
         AudioEngine::Monitoring::probe_description pd{
             .name = "SETUP_PROBE", 
@@ -140,6 +140,7 @@ int main() {
         bool cfg_output_file_enabled = config.get<bool>("DbgAudioOutputEnabled");
         std::string cfg_output_file = config.get<std::string>("DbgAudioOutput");
         int64_t cfg_duration_ms = config.get<int64_t>("SessionDurationMs");
+        int64_t cfg_hertz = config.get<int64_t>("SineWaveHertz");
 
         std::cout << format("Play {}ms of {} channel audio at {} Hz\n", cfg_loop_ms, cfg_channels, cfg_sample_rate);
 
@@ -151,7 +152,7 @@ int main() {
         size_t blocksize = (cfg_channels * monosize) / blockcount;
 
         sample_t *buf = new sample_t[monosize * cfg_channels];
-        generate_sin_wave(buf, monosize, cfg_sample_rate, cfg_channels, 480);
+        generate_sin_wave(buf, monosize, cfg_sample_rate, cfg_channels, cfg_hertz);
         std::cout << format("monosize {} channels {}\n", monosize, cfg_channels);
         writer << std::span<sample_t>(buf, monosize * cfg_channels);
         delete[] buf;
@@ -170,13 +171,15 @@ int main() {
 
 
 
+        //allocate on 16 byte alignment from a pool of 128 kibibytes of memory in a single large page
+        using miniaudio_allocator = AudioEngine::block_allocator<AudioEngine::s16, 8192>;
+        miniaudio_allocator mallocator(reinterpret_cast<void*>(shm.get_page(1))); //use 128 kibibytes of the seccond page
 
-
-
-
-        ma_context *ctx = new ma_context();
+        //example of heap allocating a ma_wrapper via my block_allocator
+        auto ctx_allocator = std::allocator_traits<miniaudio_allocator>::rebind_alloc<ma_context>(mallocator);
+        ma_context *ctx = ctx_allocator.allocate(1);
         AudioEngine::ma_call(ma_context_init(NULL, 0, NULL, ctx));
-        AudioEngine::ma_wrapper<ma_context, ma_context_uninit> context(ctx);
+        AudioEngine::ma_wrapper<ma_context, ma_context_uninit, decltype(ctx_allocator)> context(ctx, std::move(ctx_allocator));
 
         auto playout_devices = get_playout_devices(context);
         for (auto& device_info : playout_devices) {
@@ -195,6 +198,7 @@ int main() {
         cfg.dataCallback = play_data_callback;
         cfg.pUserData = &data;
 
+        //example of heap allocated and we can leave the default assumed deallocator for ma_wrapper (default_delete<T>)
         ma_device *_out_device = new ma_device();
         AudioEngine::ma_call(ma_device_init(context, &cfg, _out_device));
         AudioEngine::ma_wrapper<ma_device, ma_device_uninit> out_device(_out_device);
@@ -209,6 +213,9 @@ int main() {
     }
     catch (Net::net_error const& e) {
         std::cout << e.what() << "\n";
+    }
+    catch (std::out_of_range& e) {
+        std::cout << format("Exception: {}\n", e.what());
     }
 
     Net::cleanup();

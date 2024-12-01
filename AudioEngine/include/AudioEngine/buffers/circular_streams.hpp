@@ -77,7 +77,7 @@ namespace AudioEngine {
                 std::memcpy(&dst[left], rightspan.data(), rightspan.size_bytes());
             }
 
-            std::cout << format("Read pcm into dst {} samples m_pos {} headroom {} left {} right {}\n", dst.size(), (int64_t)m_pos, headroom, left, right);
+            //std::cout << format("Read pcm into dst {} samples m_pos {} headroom {} left {} right {}\n", dst.size(), (int64_t)m_pos, headroom, left, right);
 
             m_pos = ((int64_t)m_pos + dst.size()) % m_buffer.size(); //optimization: constrain size to power of 2
             return *this;

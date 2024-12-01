@@ -2,7 +2,7 @@
 # AudioDesigner  
 Microservice style audio processing framework I'm working on.
 
-## Run Locally  
+## How to build and run binaries
 
 Requires at least CMake 3.25 
 

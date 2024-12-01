@@ -105,7 +105,7 @@ struct shm_size_getter<sizeenum> {  \
             if (page_idx >= (size() / MapInterface::page_size) ) [[unlikely]]  {
                 throw std::out_of_range("Attempt to get_page(size_t page_idx) outside of shm bounds");
             }
-            return reinterpret_cast<page<MapInterface::page_size> *>(m_mapping.data)[page_idx]; 
+            return &reinterpret_cast<page<MapInterface::page_size> *>(m_mapping.data)[page_idx]; 
         }
 
 
