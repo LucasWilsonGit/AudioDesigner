@@ -1,7 +1,7 @@
 #pragma once
 
 #include "core.hpp"
-#include "miniaudio/miniaudio.h"
+#include "miniaudio.h"
 
 namespace AudioEngine {
     bool ma_call(ma_result res) {

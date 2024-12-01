@@ -10,7 +10,7 @@
 #include <memory>
 
 
-#include "miniaudio/miniaudio.h"
+#include "miniaudio.h"
 
 /**
  * @brief A non-owning pointer to some externally managed resource which may be deallocated whilst this weak handle is held

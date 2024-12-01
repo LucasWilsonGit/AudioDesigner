@@ -5,7 +5,7 @@ set(AudioEngine_DIR "$CMAKE_CURRENT_SOURCE_DIR" PARENT_SCOPE)
 
 set_property(TARGET AudioEngine PROPERTY CXX_STANDARD 20) #C++ 20
 
-target_include_directories(AudioEngine PUBLIC include "${CMAKE_CURRENT_SOURCE_DIR}/../ext")
+target_include_directories(AudioEngine PUBLIC include "${EXT_PROJECT_SOURCES}")
 
 target_link_libraries(AudioEngine PUBLIC wepoll)
 

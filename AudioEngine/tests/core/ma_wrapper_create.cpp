@@ -1,7 +1,7 @@
 #include "AudioEngine/core.hpp"
 
 #define MINIAUDIO_IMPLEMENTATION
-#include "miniaudio/miniaudio.h"
+#include "miniaudio.h"
 
 int main() {
     ma_context ctx;

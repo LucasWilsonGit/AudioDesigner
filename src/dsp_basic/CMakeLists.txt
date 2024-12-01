@@ -14,3 +14,9 @@ iswindows()
 if ("${LASTCALL}" STREQUAL "1" )
     target_link_libraries(dsp_basic ntdll)
 endif()
+
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/conf.cfg
+    ${CMAKE_BINARY_DIR}/conf.cfg
+    COPYONLY  # Ensure the file is copied without variable substitution
+)

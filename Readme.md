@@ -5,25 +5,40 @@ Microservice style audio processing framework I'm working on.
 ## Run Locally  
 
 Requires at least CMake 3.15 
+
 Currently I have only implemented memory mapping on Windows, need to look into libhugetlbfs
 Enabling large pages in the group policy will be necessary
 Configuring the project should pull and patch any external dependencies
 Currently it is necessary to build with --target-clean. I am still looking into why but it's low priority for me currently since build times are still quick.
 
-dsp_basic expects a conf.cfg file in the _build folder. 
+dsp_basic expects a conf.cfg file in the cwd. 
 
 Here is a template for it until I set up binaries being output to the _install folder and put conf.cfg into the dsp_basic directory to be installed to the _install folder:
 
+the binary for dsp_basic can be found in ${CMAKE_BINARY_DIR}/src/dsp_basic/
+
 #### conf.cfg
 ~~~  
-  PlayoutSampleRate   48000
-  PlayoutChannels     2
-  LoopDurationMs      125
-  DbgAudioOutputEnabled false
-  DbgAudioOutput      BinaryPCM.dat
-  SessionDurationMs   10000
+   PlayoutSampleRate   48000
+   PlayoutChannels     2
+   LoopDurationMs      125
+   DbgAudioOutputEnabled false
+   DbgAudioOutput      BinaryPCM.dat
+   SessionDurationMs   10000
 ~~~  
 
+#### How to build
+
+I recommend making a build directory within the project.
+
+Edit gcc/g++ to be replaced with the C/C++ compilers installed on your system. I recommend gcc/g++ since build flags have not been configured for MSVC or Clang.
+If output warnings/errors are badly formatted it may be necessary to decrease the number of parallel build jobs from 24 to a lower number such as 8.
+~~~
+   cmake .. -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc -DCMAKE_BUILD_TYPE=RelWithDebInfo
+   cmake --build . --clean-first -j24
+~~~
+
+If the project configuring stage fails due to /ext add_subdirectory, just run it again. 
 
 #### Enabling gpedit.msc on Windows:
 
@@ -46,6 +61,16 @@ This requires a user account be configured to run the allocator service, which w
 8. In the **Local Security Policy** Setting dialog box, select **Add User or Group....** 
    Add all users of AudioEngine that you would like to allow Large Page allocations. Consider making a separate user specifically for this policy, and making this the default user of the AudioEngineAllocator Service.
 9. Select OK.
+
+#### Running tests
+
+The project has ctest enabled in the root build tree so you should just be able to run ctest . from within the build directory. 
+
+#### Debugging
+
+The project is compiled with -O3 for Release and RelWithDebInfo configurations. If you need to debug you can try debugging with RelWithDebInfo but if functions are being inlined aggressively it may be necessary to build a Debug configuration instead which does not have the -O3 flag.
+
+I have not configured CXX flags for MSVC or clang. 
 
 ## Contributing  
 
