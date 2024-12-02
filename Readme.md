@@ -20,12 +20,14 @@ conf.cfg for dsp_basic can be found in ./src/dsp_basic/
 
 I recommend making a build directory within the project.
 
-Edit gcc/g++ to be replaced with the C/C++ compilers installed on your system. I recommend gcc/g++ since build flags have not been configured for MSVC or Clang.
-If output warnings/errors are badly formatted it may be necessary to decrease the number of parallel build jobs from 24 to a lower number such as 8.
 ~~~
    cmake .. -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc -DCMAKE_BUILD_TYPE=RelWithDebInfo
-   cmake --build . --clean-first -j24
+   cmake --build . -j24
 ~~~
+
+When building on windows, any issues with multiple target patterns from compiler-depends.make files is likely a problem from MSYS/MinGW. I have been using mingw-w64-x86_64-cmake and mingw-w64-x86_64-ninja from an MSys64 shell to avoid this problem. 
+
+A workaround if you are not willing to use the same build tools is to use --clean-first to avoid having issues from dependencies, but this will extend build times.
 
 #### Enabling gpedit.msc on Windows:
 

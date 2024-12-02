@@ -104,8 +104,29 @@ void generate_sin_wave(sample_t *buffer, size_t frame_count, size_t sample_rate,
 }
 
 
+enum shm_resource_type : uint32_t {
+    RESOURCE_TYPE_UNKNOWN = 0,
+    RESOURCE_TYPE_PCM_BUFFER = 1,
 
 
+
+    RESOURCE_TYPE_INVALID = (uint32_t)(-1)
+};
+
+using shm_offset_t = intptr_t;
+
+struct shm_resource_descriptor {
+    shm_resource_type type;
+    shm_offset_t shm_addr; 
+};
+
+
+
+
+class dsp_sine_generator_plugin {
+public:
+    using cfg_parser_types = std::tuple<>; //just use the default base_cfg_parsers types
+};
 
 
 
@@ -142,7 +163,7 @@ int main() {
         int64_t cfg_duration_ms = config.get<int64_t>("SessionDurationMs");
         int64_t cfg_hertz = config.get<int64_t>("SineWaveHertz");
 
-        std::cout << format("Play {}ms of {} channel audio at {} Hz\n", cfg_loop_ms, cfg_channels, cfg_sample_rate);
+        std::cout << format("Play {}ms loop of {} channel audio at {} Hz for a looped session duration of {}\n", cfg_loop_ms, cfg_channels, cfg_sample_rate, cfg_duration_ms);
 
         pcm_buff_t buffer(cfg_channels, cfg_sample_rate / 1000 * cfg_loop_ms, std::allocator<sample_t>());
         auto writer = AudioEngine::circular_buffer_writer(buffer);
@@ -214,7 +235,7 @@ int main() {
     catch (Net::net_error const& e) {
         std::cout << e.what() << "\n";
     }
-    catch (std::out_of_range& e) {
+    catch (std::out_of_range const& e) {
         std::cout << format("Exception: {}\n", e.what());
     }
 

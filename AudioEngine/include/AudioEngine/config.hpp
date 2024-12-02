@@ -7,6 +7,8 @@
 #include <string>
 #include <ios>
 #include <algorithm>
+#include <type_traits>
+#include <tuple>
 
 
 
@@ -206,9 +208,7 @@ namespace AudioEngine {
             
 
             std::optional<typename Parser::ValueType> result = parser.parse(ctx);
-            std::cout << format("Try parse {} at pos {} got {}\n", parser.parser_type(), (int64_t)ctx.reader().tellg(), parser.identifier());
             if (result.has_value()) {
-                std::cout << "Has value!\n";
                 
                 m_cfg.add_field(parser.identifier(), std::move(*result));
                 ctx.success_pos();
@@ -278,4 +278,19 @@ namespace AudioEngine {
             return m_cfg;
         }
     };
+
+    using base_cfg_parsers = std::tuple<
+        AudioEngine::dsp_cfg_bool_parser_impl,
+        AudioEngine::dsp_cfg_int64_parser_impl,
+        AudioEngine::dsp_cfg_string_parser_impl
+    >;
+
+    using monitor_cfg_parsers = std::tuple<
+        AudioEngine::dsp_cfg_monitor_input_parser_impl
+    >;
+
+    
+
+    
+
 }

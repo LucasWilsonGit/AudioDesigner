@@ -29,6 +29,8 @@ if ( CMAKE_COMPILER_IS_GNUCC )
     endif()
 endif()
 
+message("prefix path: ${CMAKE_PREFIX_PATH} include path: ${CMAKE_INCLUDE_PATH} lib path: ${CMAKE_LIBRARY_PATH}")
+
 project(AUDIODESIGNER)
 
 #wrapper for test registration which does nice cool things :)

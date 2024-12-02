@@ -14,35 +14,45 @@
 #include "block_allocator.hpp"
 #include "monitoring.hpp"
 #include "buffer_reader.hpp"
+#include "config.hpp"
 
 
 namespace AudioEngine {
 
-    template <class T>
-    concept dsp_plugin = requires (T t) {
-        {t.init()};
-        {t.idle()};
+    template <class PluginType>
+    concept dsp_plugin = requires (PluginType t) {
+
+        typename PluginType::cfg_parser_types;
+        PluginType::shm_size_t;
+
+        {t.init(&t)};
+        {t.idle(&t)};
     };
 
-    template <dsp_plugin plugin>    
-    class dsp {
+    template <dsp_plugin Plugin>    
+    class _dsp {
+    public:
+        using cfg_parser_types = tuple_combine_t<typename Plugin::cfg_parser_types, AudioEngine::base_cfg_parsers>;
+        using shm_size_t = Plugin::shm_size_t;
+
+    private:
+
     protected:
-        friend plugin;
+        friend Plugin;
 
         struct dsp_state {
-            //probe_service service;
+            Memory::shm2mb< Memory::shm_size::MEGABYTEx256 > shm;
+            AudioEngine::Monitoring::probe_service monitoring_service;
+
         };
 
         dsp_state m_state;
-    private:
-        
-
 
     public:
-        dsp() {
+        _dsp() {
 
         }
-        ~dsp() = default;
+        ~_dsp() = default;
 
         
     protected:

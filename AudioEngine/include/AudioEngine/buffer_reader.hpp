@@ -59,8 +59,6 @@ namespace AudioEngine {
 
             word += slice;
 
-            std::cout << format("{} found {}\n", "Parse string", word);
-
             if (word.empty())
                 m_fail = true;
 
@@ -71,8 +69,6 @@ namespace AudioEngine {
             std::basic_string<CharT> s;
             auto& res = (*this >> s);
             oword = s;
-
-            std::cout << format("Parse optional string, found {}\n", s);
 
             return res;
         }

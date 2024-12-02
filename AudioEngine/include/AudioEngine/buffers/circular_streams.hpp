@@ -3,6 +3,7 @@
 #include "buffer.hpp"
 #include <ios>
 #include <span>
+#include <string.h> //memcpy_s
 
 namespace AudioEngine {
     template <dsp_buffer BufferT>
@@ -69,6 +70,10 @@ namespace AudioEngine {
 
             int64_t left = std::min(headroom, (int64_t)dst.size());
             auto leftspan = dataspan.subspan(m_pos, left);
+            
+            //copy left into dst
+            if (dst.size_bytes() < leftspan.size_bytes()) [[unlikely]]
+                throw Memory::memory_error(format("Copying {} into buffer of size {} bytes\n", leftspan.size_bytes(), dst.size_bytes()));
             std::memcpy(dst.data(), leftspan.data(), leftspan.size_bytes());
 
             int64_t right = (int64_t)dst.size() - left;

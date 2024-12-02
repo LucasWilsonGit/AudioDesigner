@@ -30,11 +30,17 @@ if (${LASTCALL})
         GIT_TAG 7958b3048fa1e85ab5a71f18a07c24e1b1e64f1e #v1.5.8 with some API fixes
         TMP_DIR ${CMAKE_BINARY_DIR}/tmp/wepoll
         PATCH_COMMAND ${GIT_EXECUTABLE} apply --ignore-whitespace --verbose "${CMAKE_CURRENT_SOURCE_DIR}/wepoll-utf8.patch"
-        UPDATE_DISCONNECTED 1
+        SOURCE_DIR dist/wepoll
     )
     list(APPEND EXT_PROJECTS "wepoll")
 endif()
 
+set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
+set(CMAKE_ARGS
+    -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
+    -DCMAKE_CXX_STANDARD=20
+    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+)
 FetchContent_MakeAvailable(${EXT_PROJECTS})
 if (NOT EXISTS "${wepoll_SOURCE_DIR}/patched.ad")
     message("Patching wepoll...")

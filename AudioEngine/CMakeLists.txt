@@ -5,7 +5,7 @@ set(AudioEngine_DIR "$CMAKE_CURRENT_SOURCE_DIR" PARENT_SCOPE)
 
 set_property(TARGET AudioEngine PROPERTY CXX_STANDARD 20) #C++ 20
 
-target_include_directories(AudioEngine PUBLIC include "${EXT_PROJECT_SOURCES}")
+target_include_directories(AudioEngine PUBLIC include "${EXT_PROJECT_SOURCES}" "include/")
 
 target_link_libraries(AudioEngine PUBLIC wepoll)
 
@@ -104,5 +104,13 @@ if (TESTING_ENABLED)
         get_filename_component(config_test_name ${test_source} NAME_WE)
 
         lib_add_test("config_${config_test_name}" "${test_source}" CONFIG_TEST_LIBS)
+    endforeach()
+
+    set(CORE_TEST_LIBS AudioEngine)
+    file(GLOB_RECURSE CORE_TEST_SOURCES "tests/core/*.cpp")
+    foreach(test_source IN LISTS CORE_TEST_SOURCES)
+        get_filename_component(core_test_name ${test_source} NAME_WE)
+
+        lib_add_test("core_${core_test_name}" "${test_source}" CORE_TEST_LIBS)
     endforeach()
 endif()
