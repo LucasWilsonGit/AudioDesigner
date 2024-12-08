@@ -20,6 +20,16 @@ FetchContent_Declare(
 list(APPEND EXT_PROJECTS "miniaudio")
 
 
+FetchContent_Declare(
+    GoogleTest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_PROGRESS TRUE
+    TMP_DIR ${CMAKE_BINARY_DIR}/tmp/GoogleTest
+    GIT_TAG b514bdc898e2951020cbdca1304b75f5950d1f59 #v1.15.2
+    OVERRIDE_FIND_PACKAGE
+)
+list(APPEND EXT_PROJECTS "GoogleTest")
+
 iswindows()
 if (${LASTCALL})
     #TODO: Use PATCH_COMMAND instead of my hacked together execute_process

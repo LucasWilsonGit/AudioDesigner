@@ -49,20 +49,20 @@ if (TESTING_ENABLED)
     endif()
 
     
-#    if (RINGBUFFER_TESTING)
-#
-#        #test net stuff here
-#        set(RB_TEST_LIBS AudioEngine)
-#
-#        file(GLOB_RECURSE RB_TEST_SOURCES "tests/ring_buffer/*.cpp")
-#
-#        foreach(test_source IN LISTS RB_TEST_SOURCES)
-#            get_filename_component(rb_test_name ${test_source} NAME_WE)#
-#
-#            lib_add_test("ring_buffer_${rb_test_name}" "${test_source}" RB_TEST_LIBS)
-#        endforeach()
-#
-#    endif()
+    if (RINGBUFFER_TESTING)
+
+        #test net stuff here
+        set(RB_TEST_LIBS AudioEngine GTest::gtest_main)
+
+        file(GLOB_RECURSE RB_TEST_SOURCES "tests/ring_buffer/*.cpp")
+
+        foreach(test_source IN LISTS RB_TEST_SOURCES)
+            get_filename_component(rb_test_name ${test_source} NAME_WE)
+
+            lib_add_test("ring_buffer_${rb_test_name}" "${test_source}" RB_TEST_LIBS)
+        endforeach()
+
+    endif()
 
 
     

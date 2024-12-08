@@ -14,17 +14,18 @@
 namespace AudioEngine {
 
 
-    template <class CharT, size_t Alignment = 32>
+    template <class CharT>
     class buffer_reader {
     private:
         std::unique_ptr<CharT> m_buffer;
+        
         std::streamsize m_size;
         std::streamoff m_pos;
         bool m_fail;
 
     protected:
         [[nodiscard]] CharT& get_char(size_t idx) const noexcept {
-            return std::assume_aligned<Alignment>(static_cast<CharT*>(m_buffer.get()))[idx];
+            return static_cast<CharT*>(m_buffer.get())[idx];
         }
 
         [[nodiscard]] CharT& curr_char() const noexcept { return get_char(m_pos); }
@@ -38,36 +39,48 @@ namespace AudioEngine {
             m_buffer(std::move(buffer)), m_size(size), m_pos(0), m_fail(false)
         {}
 
-        buffer_reader& operator>>(std::basic_string<CharT>& word) {
-            word.clear();
-
-            
-
+        buffer_reader& operator>>(std::basic_string_view<CharT>& word) {
+            //ignore whitespace
             while (m_pos < m_size && (curr_char() == '\r' || std::isspace(curr_char())))
                 ++m_pos;
             
             std::streamoff word_start_pos = m_pos;
-            
+
             while (m_pos < m_size && curr_char() != '\r' && !std::isspace(curr_char()))
                 ++m_pos;
-            
-            
+
             if (m_pos < word_start_pos) [[unlikely]]
                 throw std::runtime_error("internal counter overflow during file read (big file?)");
-
+            
             std::string_view slice( &get_char(word_start_pos), m_pos - word_start_pos);
 
-            word += slice;
-
-            if (word.empty())
+            if (slice.empty() || slice.front() == '\0')
                 m_fail = true;
+            
+            word = slice;
 
             return *this;
         }
 
+        buffer_reader& operator>>(std::optional<std::basic_string_view<CharT>>& oword) {
+            std::basic_string_view<CharT> s;
+            auto& res = *this >> s;
+            oword = s;
+
+            return res;
+        }
+
+        buffer_reader& operator>>(std::basic_string<CharT>& word) {
+            std::string_view s;
+            auto& res = *this >> s;
+            word = s;
+
+            return res;
+        }
+
         __attribute__((noinline)) buffer_reader& operator>>(std::optional<std::basic_string<CharT>>& oword) {
             std::basic_string<CharT> s;
-            auto& res = (*this >> s);
+            auto& res = *this >> s;
             oword = s;
 
             return res;

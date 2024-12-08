@@ -9,7 +9,8 @@
 #include <algorithm>
 #include <type_traits>
 #include <tuple>
-
+#include <memory>
+#include <filesystem>
 
 
 #define TRIVIAL_IDEN_DEFINE(alias, type) \
@@ -17,27 +18,27 @@ constexpr char const alias[] = "DspCfgTrivial<" #type ">"
 
 namespace AudioEngine {
 
-    template <class CharT, size_t Alignment>
+    template <class CharT>
     class cfg_parser_context {
-        buffer_reader<CharT, Alignment>& input;
+        buffer_reader<CharT>& input;
         std::vector<std::streampos> stack;
 
     public:
-        explicit cfg_parser_context(buffer_reader<CharT, Alignment>& input) : input(input), stack({input.tellg()}) {}
+        explicit cfg_parser_context(buffer_reader<CharT>& input) : input(input), stack({input.tellg()}) {}
 
         void push_pos() { stack.push_back(input.tellg()); }
         void pop_pos() { input.seekg(stack.back()); stack.pop_back(); }
         void success_pos() { stack.pop_back(); }
-        buffer_reader<CharT, Alignment>& reader() const noexcept { return input; }
+        buffer_reader<CharT>& reader() const noexcept { return input; }
     };
 
-    template <typename T, class CharT, size_t Alignment>
-    concept dsp_cfg_parser_impl = requires(T parser, cfg_parser_context<CharT, Alignment>& ctx) {
+    template <typename T, class CharT>
+    concept dsp_cfg_parser_impl = requires(T parser, cfg_parser_context<CharT>& ctx) {
         typename T::ValueType;
         std::is_trivially_constructible_v<T>;
         { parser.parse(ctx) } -> std::same_as<std::optional<typename T::ValueType>>;
-        { parser.identifier() } -> std::same_as<std::string>;
-        { parser.parser_type() } -> std::same_as<std::string>;
+        { parser.identifier() } -> std::same_as<std::string_view>;
+        { parser.parser_type() } -> std::same_as<std::string_view>;
     };
 
     TRIVIAL_IDEN_DEFINE(DSPLITERAL_default_iden, Unknown);
@@ -45,13 +46,13 @@ namespace AudioEngine {
     template <class T,  char const* iden = DSPLITERAL_default_iden>
     class dsp_cfg_trivial_parser_impl {
     private:
-        std::string m_identifier = iden;
+        std::string_view m_identifier = iden;
     public:
         using ValueType = T;
 
-        template <class CharT, size_t Alignment>
-        std::optional<ValueType> parse(cfg_parser_context<CharT, Alignment>& ctx) {
-            std::string identifier;
+        template <class CharT>
+        std::optional<ValueType> parse(cfg_parser_context<CharT>& ctx) {
+            std::string_view identifier;
             std::optional<T> value;
 
             if (!(ctx.reader() >> m_identifier >> value))
@@ -60,19 +61,19 @@ namespace AudioEngine {
             return value;
         }
 
-        std::string identifier() { return m_identifier; }
-        std::string parser_type() { return iden; }
+        std::string_view identifier() { return m_identifier; }
+        std::string_view parser_type() { return iden; }
     };
 
     class dsp_cfg_bool_parser_impl { 
-        std::string m_identifier = "DspCfgBool";
+        std::string_view m_identifier = "DspCfgBool";
     public:
         using ValueType = bool;
 
-        template <class CharT, size_t Alignment>
-        std::optional<ValueType> parse(cfg_parser_context<CharT, Alignment>& ctx) {
+        template <class CharT>
+        std::optional<ValueType> parse(cfg_parser_context<CharT>& ctx) {
             auto& input = ctx.reader();
-            std::string value;
+            std::string_view value;
 
             if (!(input >> m_identifier >> value)) {
                 return std::nullopt;
@@ -86,8 +87,8 @@ namespace AudioEngine {
                 return std::nullopt;
         }
 
-        std::string identifier() { return m_identifier; }
-        std::string parser_type() { return "DspCfgBool"; }
+        std::string_view identifier() { return m_identifier; }
+        std::string_view parser_type() { return "DspCfgBool"; }
     };
 
     TRIVIAL_IDEN_DEFINE(DSPLITERAL_CfgInt64, int64_t);
@@ -102,15 +103,15 @@ namespace AudioEngine {
     };
 
     class dsp_cfg_monitor_input_parser_impl {
-        std::string m_identifier = "DspCfgMonitorInput";
+        std::string_view m_identifier = "DspCfgMonitorInput";
     public:
         using ValueType = probe_input_cfg;
 
-        template <class CharT, size_t Alignment>
-        std::optional<ValueType> parse(cfg_parser_context<CharT, Alignment>& ctx) {
+        template <class CharT>
+        std::optional<ValueType> parse(cfg_parser_context<CharT>& ctx) {
             auto& input = ctx.reader();
             
-            std::string start_input_tok;
+            std::string_view start_input_tok;
             probe_input_cfg res;
 
             dsp_cfg_string_parser_impl str_parser;
@@ -122,7 +123,7 @@ namespace AudioEngine {
             if (start_input_tok != "ProbeInput")
                 return std::nullopt;
 
-            if (std::optional<std::string> service = str_parser.parse(ctx)) {
+            if (std::optional<std::string_view> service = str_parser.parse(ctx)) {
                 res.in_service = *service;
                 if (str_parser.identifier() != "ProbeService") {
                     return std::nullopt;
@@ -132,8 +133,8 @@ namespace AudioEngine {
                 return std::nullopt;
             }
 
-            if (std::optional<std::string> probe = str_parser.parse(ctx)) {
-                res.in_probe = *probe;
+            if (std::optional<std::string_view> probe = str_parser.parse(ctx)) {
+                res.in_probe = *probe; //make a string from the string_view so we can reload a diff config with the same parser later
                 if (str_parser.identifier() != "ProbeName") {
                     return std::nullopt;
                 }
@@ -145,11 +146,11 @@ namespace AudioEngine {
             return res;
         }
 
-        std::string identifier() { return m_identifier; }
-        std::string parser_type() { return "DspCfgMonitorInput"; }
+        std::string_view identifier() { return m_identifier; }
+        std::string_view parser_type() { return "DspCfgMonitorInput"; }
     };
 
-    template <class CharT, size_t Alignment, dsp_cfg_parser_impl<CharT, Alignment>... Parsers>
+    template <class CharT, dsp_cfg_parser_impl<CharT>... Parsers>
     class dsp_cfg {
     private:
         using cfg_pair_t = std::pair<std::string, std::variant<typename Parsers::ValueType...>>;
@@ -173,7 +174,7 @@ namespace AudioEngine {
             throw dsp_error(format("Failed to find field {}\n", view));
         }
 
-        void add_field(std::string str, std::variant<typename Parsers::ValueType...> val) {
+        void add_field(std::basic_string<CharT> str, std::variant<typename Parsers::ValueType...> val) {
             m_cfg_fields.emplace_back(std::move(str), std::move(val));
         }
 
@@ -183,23 +184,21 @@ namespace AudioEngine {
         }
     };
 
-    template <class CharT, size_t Alignment, dsp_cfg_parser_impl<CharT, Alignment>... Parsers>
+    template <class CharT, class Allocator = std::allocator<CharT>, dsp_cfg_parser_impl<CharT>... Parsers>
     class dsp_cfg_parser {
     public:
         using cfg_pair_t = std::pair<std::string, std::variant<typename Parsers::ValueType...>>;
-        using dsp_cfg_t = dsp_cfg<CharT, Alignment, Parsers...>;
+        using dsp_cfg_t = dsp_cfg<CharT, Parsers...>;
+        using Allocator_t = typename std::allocator_traits<Allocator>::template rebind_alloc<CharT>;
     private:
         std::tuple<Parsers...> parsers; //default constructs Parsers...
         std::ifstream m_file;
         dsp_cfg_t m_cfg;
-
-        struct alignas(Alignment) aligned_block {
-            char s[Alignment];
-        };
+        Allocator_t m_buffer_alloc;
 
 
         template <class Parser>
-        bool try_parse_one(cfg_parser_context<CharT, Alignment>& ctx) {
+        bool try_parse_one(cfg_parser_context<CharT>& ctx) {
             
             auto& parser = std::get<Parser>(parsers);
 
@@ -210,7 +209,7 @@ namespace AudioEngine {
             std::optional<typename Parser::ValueType> result = parser.parse(ctx);
             if (result.has_value()) {
                 
-                m_cfg.add_field(parser.identifier(), std::move(*result));
+                m_cfg.add_field(std::string(parser.identifier()), std::move(*result));
                 ctx.success_pos();
                 return true;
             }
@@ -220,15 +219,19 @@ namespace AudioEngine {
             }
         }
 
-        bool try_parse_all(cfg_parser_context<CharT, Alignment>& ctx) {
+        bool try_parse_all(cfg_parser_context<CharT>& ctx) {
             return (try_parse_one<Parsers>(ctx) || ...); //OR across all parse impls to see if any succeeded, should early exit on first true
         }
+
+
 
     public:
         using cfg_storage_t = std::vector<cfg_pair_t>;
 
-        dsp_cfg_parser(std::unique_ptr<CharT> buffer, size_t buff_size) {
-            buffer_reader<CharT, Alignment> reader(std::move(buffer), buff_size);
+        dsp_cfg_parser(std::unique_ptr<CharT> buffer, size_t buff_size, Allocator alloc = Allocator{})
+        :   m_buffer_alloc(alloc)
+        {
+            buffer_reader<CharT> reader(std::move(buffer), buff_size);
             cfg_parser_context context = cfg_parser_context(reader);
 
             while (reader) {
@@ -240,29 +243,24 @@ namespace AudioEngine {
             m_cfg.sort();
         }
 
-        dsp_cfg_parser(std::string const& path) {
+        dsp_cfg_parser(std::filesystem::path const& path, Allocator alloc = Allocator{}) 
+        :   m_buffer_alloc(alloc)
+        {
 
             std::ifstream bfile(path, std::ios::binary | std::ios::ate);
             if (!bfile.is_open())
-                throw cfg_parse_error( format("Failed to open file {}", path));
+                throw cfg_parse_error( format("Failed to open file {}", path.generic_string()));
             
             size_t buffsize = static_cast<size_t>(bfile.tellg());
-
-            //this would not be nececssary if std::aligned_alloc would work
-            auto alloc = block_allocator<aligned_block, 4096>(new aligned_block[ 4096 ]);
-            block_allocator<CharT, 4096> ralloc(alloc); //now we can allocate chars on a ${Alignment}byte alignment
-
-            std::unique_ptr<CharT> file_buffer( ralloc.allocate(buffsize) );
+            std::unique_ptr<CharT> file_buffer( m_buffer_alloc.allocate(buffsize) );
             if (!file_buffer)
-                throw Memory::memory_error(format("Failed to allocate {} bytes of {} byte aligned memory.", buffsize, Alignment));
+                throw dsp_error(format("allocate returned nullptr"));
             
             bfile.seekg(0);
             if (!bfile.read(file_buffer.get(), buffsize))
-                throw cfg_parse_error( format("Failed to read file {} into buffer ({} bytes)", path, buffsize));
+                throw cfg_parse_error( format("Failed to read file {} into buffer ({} bytes)", path.generic_string(), buffsize));
 
-
-
-            buffer_reader<CharT, Alignment> reader(std::move(file_buffer), buffsize);
+            buffer_reader<CharT> reader(std::move(file_buffer), buffsize);
             cfg_parser_context context = cfg_parser_context(reader);
 
             while (reader) {
@@ -291,6 +289,12 @@ namespace AudioEngine {
 
     
 
-    
+    template <class CharT, class Alloc, dsp_cfg_parser_impl<CharT>... ParserTypes>
+    struct dsp_cfg_parser_from_parsers {};
 
+    template <class CharT, class Alloc, dsp_cfg_parser_impl<CharT>... ParserTypes>
+    struct dsp_cfg_parser_from_parsers<CharT, Alloc, std::tuple<ParserTypes...>> {
+        using dsp_cfg_parser_t = dsp_cfg_parser<CharT, Alloc, ParserTypes...>;
+        using dsp_cfg_t = typename dsp_cfg_parser_t::dsp_cfg_t; 
+    };
 }

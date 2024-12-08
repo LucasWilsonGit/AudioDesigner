@@ -2,12 +2,12 @@
 #include <sstream>
 #include "make_test_buffer.hpp"
 
-template <class CharT, size_t Alignment>
-class buffer_reader_tester : public AudioEngine::buffer_reader<CharT, Alignment> {
+template <class CharT>
+class buffer_reader_tester : public AudioEngine::buffer_reader<CharT> {
 public:
-    using AudioEngine::buffer_reader<CharT, Alignment>::buffer_reader;
+    using AudioEngine::buffer_reader<CharT>::buffer_reader;
 
-    CharT& curr_char() const noexcept { return AudioEngine::buffer_reader<CharT, Alignment>::curr_char(); }
+    CharT& curr_char() const noexcept { return AudioEngine::buffer_reader<CharT>::curr_char(); }
 };
 
 class test_failure_err : public std::runtime_error {
@@ -49,7 +49,7 @@ int main() {
     char const* msg = "Hello, world! This is a test message\nThe quick brown fox, jumped over the lazy dog.\r\n\r\nLorem ipsum!";
     auto [buff, len] = make_test_buffer<char>(msg);
 
-    buffer_reader_tester<char, 16> reader(std::move(buff), len);
+    buffer_reader_tester<char> reader(std::move(buff), len);
 
     test_reader_type(reader, 7, "Hello, world! This is a test message");
     test_reader_type(reader, 9, "The quick brown fox, jumped over the lazy dog.");

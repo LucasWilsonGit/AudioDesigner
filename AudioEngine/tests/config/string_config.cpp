@@ -5,7 +5,7 @@ int main() {
     std::unique_ptr<char> buf = std::unique_ptr<char>(new char[input.size()]);
     memcpy(buf.get(), input.data(), input.size());
 
-    AudioEngine::dsp_cfg_parser<char, 16,
+    AudioEngine::dsp_cfg_parser<char, std::allocator<char>,
             AudioEngine::dsp_cfg_bool_parser_impl,
             AudioEngine::dsp_cfg_monitor_input_parser_impl,
             AudioEngine::dsp_cfg_int64_parser_impl,

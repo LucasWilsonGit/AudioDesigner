@@ -133,10 +133,10 @@ struct shm_size_getter<sizeenum> {  \
     };
 
     template <shm_size size>
-    using shm2mb = _shm<win32mmapapi<1024 * 1024 * 2>, size>;
+    using shm2mb = _shm<win32mmapapi<Memory::pagesize_2MB>, size>;
 
     template <shm_size size>
-    using shm4mb = _shm<win32mmapapi<1024 * 1024 * 4>, size>;
+    using shm4mb = _shm<win32mmapapi<Memory::pagesize_4MB>, size>;
 #else
 
 #endif

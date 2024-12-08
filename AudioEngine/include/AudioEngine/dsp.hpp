@@ -23,10 +23,17 @@ namespace AudioEngine {
     concept dsp_plugin = requires (PluginType t) {
 
         typename PluginType::cfg_parser_types;
+        typename PluginType::cfg_char_t;
+
         PluginType::shm_size_t;
 
         {t.init(&t)};
         {t.idle(&t)};
+    };
+
+    struct dsp_state {
+        Memory::_shm< Memory::win32mmapapi<Memory::pagesize_2MB>, Memory::shm_size::MEGABYTEx256 > shm_storage;
+        AudioEngine::Monitoring::probe_service monitoring_service;
     };
 
     template <dsp_plugin Plugin>    
@@ -34,17 +41,16 @@ namespace AudioEngine {
     public:
         using cfg_parser_types = tuple_combine_t<typename Plugin::cfg_parser_types, AudioEngine::base_cfg_parsers>;
         using shm_size_t = Plugin::shm_size_t;
-
+        using cfg_t = typename dsp_cfg_parser_from_parsers<typename Plugin::cfg_char_t, cfg_parser_types>::dsp_cfg_t;
+        using cfg_parser_t = dsp_cfg_parser_from_parsers<typename Plugin::cfg_char_t, cfg_parser_types>::dsp_cfg_parser_t ;
     private:
+        
+        cfg_t load_config(std::string_view const& path) const {
+            cfg_parser_t parser(path);
+        }
 
     protected:
         friend Plugin;
-
-        struct dsp_state {
-            Memory::shm2mb< Memory::shm_size::MEGABYTEx256 > shm;
-            AudioEngine::Monitoring::probe_service monitoring_service;
-
-        };
 
         dsp_state m_state;
 
@@ -52,7 +58,7 @@ namespace AudioEngine {
         _dsp() {
 
         }
-        ~_dsp() = default;
+        ~_dsp() {}
 
         
     protected:

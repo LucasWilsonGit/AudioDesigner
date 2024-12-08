@@ -31,12 +31,16 @@ std::string get_cwd() {
 }
 
 auto load_config(std::string const& path) {
-    AudioEngine::dsp_cfg_parser<char, 16,
+
+    static AudioEngine::block_allocator<char, 4096> cfg_buff_alloc(new char[4096]);
+
+    AudioEngine::dsp_cfg_parser<char, 
+        AudioEngine::block_allocator<char, 4096>,
             AudioEngine::dsp_cfg_bool_parser_impl,
             AudioEngine::dsp_cfg_monitor_input_parser_impl,
             AudioEngine::dsp_cfg_int64_parser_impl,
             AudioEngine::dsp_cfg_string_parser_impl
-        > parser(path);
+        > parser(path, cfg_buff_alloc);
 
     return parser.get_config();
 }
@@ -62,7 +66,8 @@ std::vector<ma_device_info> get_playout_devices(ma_context& context) {
 
 
 using sample_t = int16_t;
-using pcm_buff_t = AudioEngine::pcm_buffer<sample_t, std::allocator<sample_t>>;
+using pcm_buff_t = AudioEngine::pcm_buffer<sample_t, std::allocator<sample_t>, 16>;
+
 using pcm_buff_reader_t = AudioEngine::circular_buffer_reader<pcm_buff_t>;
 
 struct play_data_callback_userdata {
