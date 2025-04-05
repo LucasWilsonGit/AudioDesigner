@@ -7,14 +7,14 @@ void generate_sin_wave(int16_t *buffer, size_t sample_count) {
     int16_t *abuffer = std::assume_aligned<32>(buffer);
 
     for (size_t i = 0; i < sample_count; i++) {
-        float ts = i/48000;
+        float ts = static_cast<float>(i)/48000;
         abuffer[i] = (int16_t)(std::numeric_limits<int16_t>::max() * std::sin(ts * std::numbers::pi));
     }
 }
 
 void generate_sin_wave2(int16_t *buffer, size_t sample_count) {
     for (size_t i = 0; i < sample_count; i++) {
-        float ts = i/48000;
+        float ts = static_cast<float>(i)/48000;
         buffer[i] = (int16_t)(std::numeric_limits<int16_t>::max() * std::sin(ts * std::numbers::pi));
     }
 }

@@ -3,14 +3,15 @@
 #include "test_block_allocator.hpp"
 
 #include <vector>
+#include <array>
 
 int main() {
 
     try {
-        std::array<uint8_t, 64> validate0 = {
+        std::array<uint32_t, 64> validate0 = {
             2,1,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
         };
-        std::array<uint8_t, 64> validate1 = {
+        std::array<uint32_t, 64> validate1 = {
             0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
         };
 
@@ -26,6 +27,4 @@ int main() {
         std::cout << "Error: " << e.what() << "\n";
         return 1;
     }
-
-    return 1;
 }

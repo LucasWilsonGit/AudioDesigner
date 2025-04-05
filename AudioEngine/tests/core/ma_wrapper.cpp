@@ -7,16 +7,16 @@ static bool uninitialized = false;
 
 template <class T>
 struct test_allocator {
-    int& allocated = 0;
+    nonowning_ptr<int> allocated = nullptr;
 
     T* allocate(size_t count) {
-        allocated += count;
+        *allocated += static_cast<int>(count);
         return new T[count];
     }
 
     void deallocate(T* inst, size_t count) {
         delete[] inst;
-        allocated -= count;
+        *allocated -= static_cast<int>(count);
     }
 };
 
@@ -28,7 +28,7 @@ ma_result uninit_wrapper(ma_context *ctx) {
 int main() {
     
     int allocation_count = 0;
-    auto ctx_allocator = test_allocator<ma_context>{.allocated=allocation_count};
+    auto ctx_allocator = test_allocator<ma_context>{.allocated=&allocation_count};
     {
         ma_context *ctx = ctx_allocator.allocate(1);
         AudioEngine::ma_call(ma_context_init(NULL, 0, NULL, ctx));

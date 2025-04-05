@@ -33,6 +33,12 @@ namespace Memory {
         map_handle_t handle;
         size_t size;
         void* data;
+
+        mapping(mapping const&) = delete;
+        mapping* operator=(mapping const&) = delete;
+
+        explicit mapping(std::string n, void* h, size_t s, void* d)
+        : name(std::move(n)), handle(h), size(s), data(d) {}
     };
 
     enum class shm_size : uint64_t {
@@ -63,8 +69,9 @@ struct shm_size_getter<sizeenum> {  \
     concept mmap_impl_interface = requires(T t) {
         { t.init() };
         { t.create("foo", 0LL, 0U) } -> std::same_as<mapping>;
-        { t.release(mapping{"foo", 0LL, 0U}) };
-        { t.data(mapping{"foo", 0LL, 0U}) } -> std::same_as<void*>;
+        { t.release(
+            mapping("foo", nullptr, 0LL, 0U)) };
+        { t.data(mapping("foo", nullptr, 0LL, 0U)) } -> std::same_as<void*>;
         { T::page_size };
     };
 
@@ -97,11 +104,16 @@ struct shm_size_getter<sizeenum> {  \
             api::release(m_mapping);
         }
 
+        _shm(_shm const&) = delete;
+        _shm* operator=(_shm const&) = delete;
+
+        
+
         std::string_view const name() const noexcept { return m_mapping.name; };
         size_t size() noexcept { return shm_size_getter<shm_size_t>::value; };
 
         void* data() noexcept { return m_mapping.data; }
-        void* get_page(size_t page_idx) noexcept { 
+        void* get_page(size_t page_idx) { 
             if (page_idx >= (size() / MapInterface::page_size) ) [[unlikely]]  {
                 throw std::out_of_range("Attempt to get_page(size_t page_idx) outside of shm bounds");
             }

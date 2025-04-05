@@ -1,4 +1,4 @@
-﻿diff --git a/CMakeBundle.cmake b/CMakeBundle.cmake
+diff --git a/CMakeBundle.cmake b/CMakeBundle.cmake
 new file mode 100644
 index 0000000..d73d097
 --- /dev/null
@@ -258,59 +258,29 @@ index 0000000..d73d097
 +
 +endfunction()
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index dfc13b7..c56d9b4 100644
+index dfc13b7..eeace9a 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -1,166 +1,114 @@
 -cmake_minimum_required(VERSION 3.0.0)
-+cmake_minimum_required(VERSION 3.15.0)
- project(wepoll)
- 
+-project(wepoll)
+-
 -include(CMakeParseArguments)
-+file(GLOB SOURCES_DOC LICENSE *.md)
-+file(GLOB SOURCES src/*.c)
-+file(GLOB TESTS test/*.c)
-+
-+
-+#include functions defined for bundling source and header files
-+include("${CMAKE_CURRENT_SOURCE_DIR}/CMakeBundle.cmake")
-+
-+#Configuration parameters
-+set(WEPOLL_CONFIGURATION "STATIC" CACHE STRING "wepoll build configuration")
-+option(ENABLE_TESTS "Enable or Disable building and execution of tests" ON)
-+
-+#validate configuration parameters
-+validate_configuration("${WEPOLL_CONFIGURATION}")
-+
-+set(WEPOLL_TARGET wepoll)
-+set(WEPOLL_DIST_DIR "dist")
-+add_library(
-+  ${WEPOLL_TARGET}
-+  ${WEPOLL_CONFIGURATION}
-+)
- 
+-
 -link_libraries(ws2_32)
-+target_link_libraries(${WEPOLL_TARGET} PUBLIC ws2_32)
- 
- if(MSVC)
+-
+-if(MSVC)
 -  add_compile_options(/Wall /WX /wd4127 /wd4201 /wd4242 /wd4710 /wd4711 /wd4820)
-+  target_compile_options(${WEPOLL_TARGET} PUBLIC /Wall /WX /wd4127 /wd4201 /wd4242 /wd4710 /wd4711 /wd4820)
-   if(MSVC_VERSION GREATER_EQUAL 1900)
+-  if(MSVC_VERSION GREATER_EQUAL 1900)
 -    add_compile_options(/wd5045)
-+  target_compile_options(${WEPOLL_TARGET} PUBLIC /wd5045)
-   endif()
- else()
+-  endif()
+-else()
 -  add_compile_options(-Wall -Wextra -Werror)
-+  target_compile_options(${WEPOLL_TARGET} PUBLIC -W)
- endif()
- 
-+#This can probably just be replaced with appends to the start of the jumbo h file to handle properly disabling C stuff if compiling with C not C
-+#and then all builds of wepoll could just use the bundled jumbo files instead of the actual source files?
-+#
- # Work around bug in in Windows SDK 10.0.17763.0 and maybe other versions.
+-endif()
+-
+-# Work around bug in in Windows SDK 10.0.17763.0 and maybe other versions.
 -add_definitions(-D_CRT_HAS_CXX17=0)
-+target_compile_definitions(${WEPOLL_TARGET} PUBLIC -D_CRT_HAS_CXX17=0)
- 
+-
 -file(GLOB SOURCES_DOC LICENSE *.md)
 -file(GLOB_RECURSE SOURCES_CONFIG config/*.h)
 -file(GLOB SOURCES_CONFIG_EXTERNAL_DLLEXPORT config/external/dllexport/*.h)
@@ -397,9 +367,7 @@ index dfc13b7..c56d9b4 100644
 -  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 -  DEPENDS ${SOURCES_DOC}
 -)
-+#define the WEPOLL_EXPORT to be used by the source
-+set_wepoll_export_macro( "${WEPOLL_TARGET}" "${WEPOLL_CONFIGURATION}" )
- 
+-
 -set(DLL_TARGET "${LIB_NAME}.dll")
 -add_library(
 -  ${DLL_TARGET} SHARED
@@ -411,11 +379,7 @@ index dfc13b7..c56d9b4 100644
 -  config/external/dllexport config/internal/default include src
 -)
 -set_target_properties(${DLL_TARGET} PROPERTIES OUTPUT_NAME ${DLL_TARGET})
-+set(INCLUDE_PATTERNS
-+  "#include[ \t\r\n]*\"([^\"]+)\""
-+#  "#include[ \t\r\n]*<([^<>])>"      Ignore system header includes. So long as the appropriate include style is used, then we can avoid bundling system headers.
-+ )
- 
+-
 -set(BUNDLE_DLL_TARGET "${LIB_NAME}-bundle.dll")
 -set(BUNDLE_DLL_SOURCE "${GEN_DIR}/${LIB_NAME}-bundle-dll.c")
 -bundle_source(OUTPUT ${BUNDLE_DLL_SOURCE} EXTERNAL_CONFIG dllexport)
@@ -429,21 +393,13 @@ index dfc13b7..c56d9b4 100644
 -  ${BUNDLE_DLL_TARGET}
 -  PROPERTIES OUTPUT_NAME "${LIB_NAME}-bundle"
 -)
-+#Places to look for headers
-+set(HEADER_PATHS
-+  #src before include otherwise it starts with wepoll.h which uses win.h constants but does not include win.h (nice)
-+  "src"
-+  "include"
-+ )
- 
+-
 -set(TESTING_LIB_TARGET "${LIB_NAME}-testing.lib")
 -add_library(
 -  ${TESTING_LIB_TARGET} STATIC
 -  ${SOURCES_CONFIG_EXTERNAL_STATIC} ${SOURCES_CONFIG_INTERNAL_DEFAULT}
 -  ${SOURCES_INCLUDE} ${SOURCES_SRC} ${SOURCES_TEST_UTIL}
-+set(SOURCE_PATHS
-+  "src"
- )
+-)
 -target_include_directories(
 -  ${TESTING_LIB_TARGET} PUBLIC
 -  config/external/static config/internal/default include src
@@ -451,18 +407,93 @@ index dfc13b7..c56d9b4 100644
 -set_target_properties(
 -  ${TESTING_LIB_TARGET} PROPERTIES
 -  OUTPUT_NAME "${LIB_NAME}-testing"
-+
-+set(HEADER_BLACKLIST
-+  "config-internal.h"
-+  "config-external.h"
- )
- 
+-)
+-
 -foreach(TEST_SOURCE ${SOURCES_TEST})
 -  get_filename_component(TEST_NAME ${TEST_SOURCE} NAME_WE)
 -  add_executable(${TEST_NAME} ${TEST_SOURCE} ${SOURCES_TEST_LEAK_CHECK})
 -  target_include_directories(
 -    ${TEST_NAME} PUBLIC
 -    config/external/static config/internal/default include src test/shared
+-  )
+-  target_link_libraries(${TEST_NAME} ${TESTING_LIB_TARGET})
+-  set_target_properties(${TEST_NAME} PROPERTIES FOLDER Tests)
+-  list(APPEND TEST_TARGETS ${TEST_NAME})
+-  list(APPEND TEST_OUTPUTS $<TARGET_FILE:${TEST_NAME}>)
+-endforeach()
+-
+-add_custom_target(
+-  test-all
+-  COMMAND node ${TOOL_RUN_TESTS} ${TEST_OUTPUTS}
+-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+-  DEPENDS ${TOOL_RUN_TESTS} ${TEST_TARGETS}
+-)
++cmake_minimum_required(VERSION 3.15.0)
++project(wepoll)
++
++file(GLOB SOURCES_DOC LICENSE *.md)
++file(GLOB SOURCES src/*.c)
++file(GLOB TESTS test/*.c)
++
++
++#include functions defined for bundling source and header files
++include("${CMAKE_CURRENT_SOURCE_DIR}/CMakeBundle.cmake")
++
++#Configuration parameters
++set(WEPOLL_CONFIGURATION "STATIC" CACHE STRING "wepoll build configuration")
++option(ENABLE_TESTS "Enable or Disable building and execution of tests" ON)
++
++#validate configuration parameters
++validate_configuration("${WEPOLL_CONFIGURATION}")
++
++set(WEPOLL_TARGET wepoll)
++set(WEPOLL_DIST_DIR "dist")
++add_library(
++  ${WEPOLL_TARGET}
++  ${WEPOLL_CONFIGURATION}
++)
++
++target_link_libraries(${WEPOLL_TARGET} PUBLIC ws2_32)
++
++if(MSVC)
++  target_compile_options(${WEPOLL_TARGET} PUBLIC /Wall /WX /wd4127 /wd4201 /wd4242 /wd4710 /wd4711 /wd4820 /external:W0 /external:anglebrackets)
++  if(MSVC_VERSION GREATER_EQUAL 1900)
++  target_compile_options(${WEPOLL_TARGET} PUBLIC /wd5045)
++  endif()
++else()
++  target_compile_options(${WEPOLL_TARGET} PUBLIC -W)
++endif()
++
++#This can probably just be replaced with appends to the start of the jumbo h file to handle properly disabling C stuff if compiling with C not C
++#and then all builds of wepoll could just use the bundled jumbo files instead of the actual source files?
++#
++# Work around bug in in Windows SDK 10.0.17763.0 and maybe other versions.
++target_compile_definitions(${WEPOLL_TARGET} PUBLIC -D_CRT_HAS_CXX17=0)
++
++#define the WEPOLL_EXPORT to be used by the source
++set_wepoll_export_macro( "${WEPOLL_TARGET}" "${WEPOLL_CONFIGURATION}" )
++
++set(INCLUDE_PATTERNS
++  "#include[ \t\r\n]*\"([^\"]+)\""
++#  "#include[ \t\r\n]*<([^<>])>"      Ignore system header includes. So long as the appropriate include style is used, then we can avoid bundling system headers.
++ )
++
++#Places to look for headers
++set(HEADER_PATHS
++  #src before include otherwise it starts with wepoll.h which uses win.h constants but does not include win.h (nice)
++  "src"
++  "include"
++ )
++
++set(SOURCE_PATHS
++  "src"
++)
++
++set(HEADER_BLACKLIST
++  "config-internal.h"
++  "config-external.h"
++)
++
 +#defined in CMakeBundle.cmake
 +bundle_headers("${CMAKE_CURRENT_SOURCE_DIR}/${WEPOLL_DIST_DIR}")
 +bundle_sources("${CMAKE_CURRENT_SOURCE_DIR}/${WEPOLL_DIST_DIR}")
@@ -482,19 +513,7 @@ index dfc13b7..c56d9b4 100644
 +    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
 +    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
 +    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
-   )
--  target_link_libraries(${TEST_NAME} ${TESTING_LIB_TARGET})
--  set_target_properties(${TEST_NAME} PROPERTIES FOLDER Tests)
--  list(APPEND TEST_TARGETS ${TEST_NAME})
--  list(APPEND TEST_OUTPUTS $<TARGET_FILE:${TEST_NAME}>)
--endforeach()
--
--add_custom_target(
--  test-all
--  COMMAND node ${TOOL_RUN_TESTS} ${TEST_OUTPUTS}
--  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
--  DEPENDS ${TOOL_RUN_TESTS} ${TEST_TARGETS}
--)
++  )
 +  set_wepoll_export_macro( WEPOLL_TEST_LIB "${WEPOLL_CONFIGURATION}" )
 +
 +  #wrapper for test registration which does nice cool things :)
@@ -559,3 +578,28 @@ index c469e5c..22dad32 100644
 -#include "config-internal.h"
  
  #endif /* WEPOLL_CONFIG_H_ */
+diff --git a/src/nt.c b/src/nt.c
+index 408d0d4..1c06226 100644
+--- a/src/nt.c
++++ b/src/nt.c
+@@ -20,6 +20,11 @@ typedef FARPROC nt__fn_ptr_cast_t;
+ NT_NTDLL_IMPORT_LIST(X)
+ #undef X
+ 
++#ifdef _MSC_VER
++#pragma warning(push)
++#pragma warning(disable: 4191)
++#endif
++
+ int nt_global_init(void) {
+   HMODULE ntdll;
+   FARPROC fn_ptr;
+@@ -38,3 +43,7 @@ int nt_global_init(void) {
+ 
+   return 0;
+ }
++
++#ifdef _MSC_VER
++#pragma warning(pop)
++#endif
+\ No newline at end of file

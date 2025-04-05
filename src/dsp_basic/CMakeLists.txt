@@ -10,8 +10,7 @@ target_link_libraries(dsp_basic AudioEngine)
 
 message(STATUS "PLATFORM_ID: ${PLATFORM_ID} CMAKE_SYSTEM_NAME: ${CMAKE_SYSTEM_NAME}")
 
-iswindows()
-if ("${LASTCALL}" STREQUAL "1" )
+if (ISWINDOWS)
     target_link_libraries(dsp_basic ntdll)
 endif()
 

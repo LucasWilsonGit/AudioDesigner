@@ -20,7 +20,7 @@ namespace Net {
     };
 
     //fdecl to be friend of ipv4 ipv6
-    class end_point;
+    struct end_point;
 
     using port_t = uint16_t;
     constexpr port_t PORT_ANY = 0;
@@ -34,7 +34,7 @@ namespace Net {
     struct address_ipv4 {
     //data
     private:
-        std::array<std::byte, 4> m_bytes;
+        std::array<std::byte, 4> alignas(uint32_t) m_bytes;
 
     public:
         //tested
@@ -46,7 +46,7 @@ namespace Net {
         }
         explicit address_ipv4(std::array<std::byte, 4> bytes) : m_bytes(std::move(bytes)) {}            //tested
         address_ipv4(std::string const& addr) : m_bytes(parse_ipv4(addr)) {}                            //tested
-        address_ipv4(::in_addr const& addr) : m_bytes(parse_ipv4(addr)) {}                              //tested
+        address_ipv4(in_addr const& addr) : m_bytes(parse_ipv4(addr)) {}                                //tested
         
         bool is_multicast() const noexcept {                                                            //TODO: write unit test
             uint8_t byte = std::to_integer<uint8_t>(m_bytes[0]);
@@ -70,7 +70,7 @@ namespace Net {
         }
 
     protected:
-        friend class end_point;
+        friend struct end_point;
 
         std::array<std::byte, 4> const& peek_bytes() const noexcept {                                   //tested by bytes()
             return m_bytes;
@@ -79,7 +79,7 @@ namespace Net {
     private:
     };
 
-    class address_ipv6 {
+    struct address_ipv6 {
     private:
         std::array<std::byte, 16> m_bytes;
 
@@ -107,7 +107,7 @@ namespace Net {
         }
 
     protected:
-        friend class end_point;
+        friend struct end_point;
 
         std::array<std::byte, 16> const& peek_bytes() const noexcept {                                  //tested by bytes()
             return m_bytes;

@@ -9,9 +9,6 @@
 #include <iostream>
 #include <memory>
 
-
-#include "miniaudio.h"
-
 /**
  * @brief A non-owning pointer to some externally managed resource which may be deallocated whilst this weak handle is held
  */
@@ -25,7 +22,7 @@ concept stringlike = requires (T t) {
 
 template <class... Ts>
 std::string format(stringlike auto fmtstr, Ts&&... args) {
-    return std::vformat(fmtstr, std::make_format_args(std::forward<Ts>(args)...));
+    return std::vformat(fmtstr, std::make_format_args(args...));
 }
 
 template <class T>
@@ -33,9 +30,12 @@ auto ceil_div(T const& l, T const& r) {
     return (l + r-1) / r;
 }
 
+/*
+Unused after I didn't enforce is_power_of_two on containers sizes
 constexpr bool is_power_of_two(size_t n) {
     return (n!=0) && ((n & (n-1)) == 0);
 }
+*/
 
 // Helper to create overloads
 template<class... Ts> struct overloads : Ts... { using Ts::operator()...; };
@@ -78,9 +78,9 @@ namespace Net {
     using socket_t = int;
 #endif
 
-    REGISTER_AUDIOENGINE_ERROR(net_error, AudioEngine::dsp_error);
+    REGISTER_AUDIOENGINE_ERROR(net_error, AudioEngine::dsp_error); 
     REGISTER_AUDIOENGINE_ERROR(would_block_error, net_error);
-
+    
 }
 
 namespace Memory {

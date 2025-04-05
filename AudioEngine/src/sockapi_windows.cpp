@@ -1,30 +1,31 @@
 #include "AudioEngine/sockapi.hpp"
 #include "AudioEngine/address.hpp"
 
-#include <winsock2.h>
-#include <windows.h>
-#include <ws2tcpip.h>
 #include <string>
 #include <functional>
 #include <cstring>
 
+#include <winsock2.h>
+#include <windows.h>
+#include <ws2tcpip.h>
+/*
 namespace wepoll {
 #include "jumbo.h" //from wepoll PUBLIC includes
 }
+*/
 
-#include <iostream>
 
 //being very explicit about namespaces just to avoid any future headaches
 namespace Net {
-    void on_completion(DWORD error, DWORD bytes, LPWSAOVERLAPPED info, DWORD flags) {}
+    void on_completion(DWORD, DWORD, LPWSAOVERLAPPED, DWORD) noexcept {}
 
     std::string errno_string(int err) {
         char* buf = nullptr;
         FormatMessageA(
-            FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, 
+            static_cast<DWORD>(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS), 
             nullptr, 
-            err, 
-            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), 
+            static_cast<DWORD>(err), 
+            static_cast<DWORD>(MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT)), 
             (LPSTR)&buf, 
             0,
             nullptr
@@ -35,7 +36,13 @@ namespace Net {
     }
 
     void emit_WSA_error(int error) {
-        throw net_error("WSA error: " + errno_string(error));
+        switch (error) {
+            case WSAEWOULDBLOCK:
+                throw would_block_error("WSAEWOULDBLOCK: " + errno_string(error));
+
+            default:
+                throw net_error("WSA error: " + errno_string(error));
+        }
     }
 
     void emit_WSA_error() {
@@ -53,9 +60,7 @@ namespace Net {
     }
 
     void init() {
-        int result;
         WSADATA wsa_data;
-
         WSA_call(WSAStartup(MAKEWORD(2,2), &wsa_data));
     }
 
@@ -72,12 +77,12 @@ namespace Net {
     }
 
     std::array<std::byte, 4> parse_ipv4(::in_addr const& value) {
-        return std::array<std::byte, 4> {
+        return std::array<std::byte, 4> { {
             static_cast<std::byte>(value.S_un.S_un_b.s_b1), 
             static_cast<std::byte>(value.S_un.S_un_b.s_b2), 
             static_cast<std::byte>(value.S_un.S_un_b.s_b3), 
             static_cast<std::byte>(value.S_un.S_un_b.s_b4)
-        };
+        } };
     }
 
     std::array<std::byte, 16> parse_ipv6(std::string const& addr) {
@@ -104,8 +109,8 @@ namespace Net {
         return sockaddr;
     }
 
-    in6_addr get_addr6(address_ipv6 const& addr) {
-        in6_addr sockaddr;
+    ::in6_addr get_addr6(address_ipv6 const& addr) {
+        ::in6_addr sockaddr;
         memcpy(&sockaddr.u.Byte, addr.data(), 16);
         return sockaddr;
     }
@@ -159,7 +164,7 @@ namespace Net {
 
             default: {
                 throw net_error("Unsupported safamily: " + std::to_string(addr.sa_family));
-                return end_point(address_ipv4(0), 0);
+                //return end_point(address_ipv4(0), 0);
             break; }
         }
     }
@@ -226,9 +231,10 @@ cleanup:
     }
 
     void bind(socket_t sock, end_point const& target) {
-        int addrlen;
         auto [ss, size] = get_end_point(target);
-        WSA_call(::bind(sock, (SOCKADDR*)&ss, size));
+        WSA_call(
+            ::bind(sock, (SOCKADDR*)&ss, static_cast<int>(size))
+        );
     }
 
     void listen(socket_t sock, int num_clients) {
@@ -295,13 +301,18 @@ cleanup:
     int poll(std::vector<pollfd>& entries, int timeout_ms) {
         static_assert(sizeof(pollfd) == sizeof(::pollfd), "internal pollfd definition does not match the size of the OS pollfd definition");
 
-        int res = ::WSAPoll((WSAPOLLFD*)entries.data(), entries.size(), timeout_ms);
+        int res = ::WSAPoll(
+            (WSAPOLLFD*)entries.data(), 
+            static_cast<ULONG>(entries.size()), 
+            timeout_ms
+        );
         if (res == SOCKET_ERROR)
             emit_WSA_error();
 
         return res;
     }
 
+    /*
     epoll_handle_t epoll_create(int size) {
         return wepoll::epoll_create(size);
     }
@@ -321,9 +332,15 @@ cleanup:
     int epoll_close(epoll_handle_t ep) {
         return wepoll::epoll_close(ep);
     }
+    */
 
     int send(socket_t sock, uint8_t const* buf, int size, int flags) {
-        int res = ::send(sock, reinterpret_cast<char const*>(buf), size, flags);
+        int res = ::send(
+            sock, 
+            reinterpret_cast<char const*>(buf), 
+            size, 
+            flags
+        );
         if (res == SOCKET_ERROR)
             emit_WSA_error();
         
@@ -333,7 +350,14 @@ cleanup:
     int sendto(socket_t sock, uint8_t const* buf, int size, int flags, end_point const& dst) {
         auto [addrstorage, addrsize] = dst.get_sockaddr();
 
-        int res = ::sendto(sock, reinterpret_cast<char const*>(buf), size, flags, reinterpret_cast<sockaddr const*>(&addrstorage), addrsize); 
+        int res = ::sendto(
+            sock, 
+            reinterpret_cast<char const*>(buf), 
+            size, 
+            flags, 
+            reinterpret_cast<sockaddr const*>(&addrstorage), 
+            static_cast<int>(addrsize)
+        ); 
         if (res == SOCKET_ERROR)
             emit_WSA_error();
         
@@ -342,10 +366,17 @@ cleanup:
 
     int sendmsg(socket_t sock, message_header_t *header, int flags) {
         DWORD outbytes;
-        if (::WSASendMsg(sock, reinterpret_cast<LPWSAMSG>(header), flags, &outbytes, nullptr, on_completion ) == SOCKET_ERROR)
+        if (::WSASendMsg(
+            sock, 
+            reinterpret_cast<LPWSAMSG>(header), 
+            static_cast<DWORD>(flags), 
+            &outbytes, 
+            nullptr, 
+            on_completion 
+        ) == SOCKET_ERROR)
             emit_WSA_error();
 
-        return outbytes;
+        return static_cast<int>(outbytes);
     }
 
     void shutdown(socket_t sock, int how) {

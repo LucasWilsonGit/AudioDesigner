@@ -23,20 +23,29 @@
 
 using sa_family_t = uint16_t;
 
-struct in_addr;
-struct in6_addr;
-struct sockaddr;
-struct sockaddr_in;
-struct sockaddr_in6;
-//16byte aligned 128 byte buffer based on RFC 4393 assuming max 128byte sockaddr type
-struct alignas(16) sockaddr_storage;
+#ifdef _MSC_VER
+    typedef struct in_addr in_addr;
+    typedef struct in6_addr in6_addr;
+    typedef struct sockaddr sockaddr;
+    typedef struct sockaddr_in sockaddr_in;
+    typedef struct sockaddr_in6 sockaddr_in6;
+    typedef struct sockaddr_storage sockaddr_storage;
+#else
+    struct in_addr;
+    struct in6_addr;
+    struct sockaddr;
+    struct sockaddr_in;
+    struct sockaddr_in6;
+    //16byte aligned 128 byte buffer based on RFC 4393 assuming max 128byte sockaddr type
+    struct alignas(16) sockaddr_storage;
+#endif
 
 namespace Net {
     //fdecl socket.hpp class socket
-    class socket;
-    class address_ipv4;
-    class address_ipv6;
-    class end_point;
+    struct socket;
+    struct address_ipv4;
+    struct address_ipv6;
+    struct end_point;
 
 #ifdef _WIN32 
     using epoll_handle_t = void*;
@@ -100,8 +109,8 @@ namespace Net {
         return buffer;
     }
 
-    constexpr std::array<std::byte, 4> to_bytes(::in_addr const& value);
-    constexpr std::array<std::byte, 16> to_bytes(::in6_addr const& value);
+    constexpr std::array<std::byte, 4> to_bytes(in_addr const& value);
+    constexpr std::array<std::byte, 16> to_bytes(in6_addr const& value);
 
     //inits WSA on windows, should do nothing in linux.
     void init();
@@ -112,15 +121,15 @@ namespace Net {
     //uses inet_pton
     std::array<std::byte, 4> parse_ipv4(std::string const& addr);
     //uses to_bytes<T>(T);
-    std::array<std::byte, 4> parse_ipv4(::in_addr const& addr);
+    std::array<std::byte, 4> parse_ipv4(in_addr const& addr);
 
     //uses inet_pton
     std::array<std::byte, 16> parse_ipv6(std::string const& addr);
     //uses some possibly unsafe pointer voodoo. Alignment and lifetime rules should not be violated though so I think it ought to be standards compliant.
-    std::array<std::byte, 16> parse_ipv6(::in6_addr const& addr);
+    std::array<std::byte, 16> parse_ipv6(in6_addr const& addr);
 
-    ::in_addr get_addr4(address_ipv4 const& addr);
-    ::in6_addr get_addr6(address_ipv6 const& addr);
+    in_addr get_addr4(address_ipv4 const& addr);
+    in6_addr get_addr6(address_ipv6 const& addr);
 
     //get an end_point from a sockaddr
     end_point parse_end_point(::sockaddr const& addr);                                  //Tested

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "core.hpp"
-#include "miniaudio.h"
+#include <miniaudio.h>
 
 namespace AudioEngine {
     template <class Deallocator, class T>
@@ -16,7 +16,6 @@ namespace AudioEngine {
         throw AudioEngine::dsp_error(
             format("miniaudio call failed with reason: {}\n", ma_result_description(res))
         );
-        return false;
     }
 
     template <class MaType, auto Dtor, class Deallocator_t = std::default_delete<MaType>>

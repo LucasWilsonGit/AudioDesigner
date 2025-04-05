@@ -24,14 +24,14 @@ namespace AudioEngine {
 
     template <size_t N>
     struct block_allocator_data_storage {
-        alignas(32) std::array<uint8_t, N> markers {0};
+        alignas(32) std::array<uint32_t, N> markers {{0}};
         void* buf = nullptr; //N instances of T externally allocated, this just manages suballocations but does not own the memory
 
         size_t elem_size;
-        uint8_t alignment;
+        size_t alignment;
         
 
-        block_allocator_data_storage(uint8_t align, size_t esize)
+        explicit block_allocator_data_storage(size_t align, size_t esize)
         :   elem_size(esize), alignment(align)
         {
             markers.fill(0);
@@ -104,10 +104,14 @@ namespace AudioEngine {
         }
 
         template <class T2>
-        constexpr bool operator==(block_allocator<T2, N> const& other) noexcept {
+        constexpr bool operator==(block_allocator<T2, N> const& other) const noexcept {
             return m_p_storage == other.m_p_storage;
         }
 
+        template <class T2>
+        constexpr bool operator!=(block_allocator<T2, N> const& other) const noexcept {
+            return !(*this == other);
+        }
 
         template <class U>
         block_allocator(block_allocator<U, N> const& other) noexcept : m_p_storage(other.m_p_storage) {}
@@ -119,12 +123,14 @@ namespace AudioEngine {
 
         //returns uninitialized aligned memory for `count` instances of `T` 
         T* allocate(size_t count) {
+            //TODO: SIMD optimize? 
+            //  markers is already aligned on a 32byte boundary
             size_t desired_size = count * sizeof(T) + (alignof(T) - 1); //pad alignment
             size_t num_blocks = ceil_div(desired_size,  m_p_storage->elem_size); //calculate num of blocks to contain T aligned desired_sizr
             size_t start_idx = find_contiguous_blocks_idx(num_blocks);
 
             for (size_t i = 0; i < num_blocks; i++) {
-                m_p_storage->markers[start_idx + i] = num_blocks - i;
+                m_p_storage->markers[start_idx + i] = static_cast<uint32_t>(num_blocks - i);
             }
 
             return reinterpret_cast<T*>(&reinterpret_cast<std::byte*>(m_p_storage->buf)[start_idx * m_p_storage->elem_size]);
@@ -140,7 +146,7 @@ namespace AudioEngine {
             
             uintptr_t buff_start = reinterpret_cast<uintptr_t>(m_p_storage->buf);
             uintptr_t elem_addr = reinterpret_cast<uintptr_t>(elem);
-            intptr_t offs = elem_addr - buff_start;
+            intptr_t offs = static_cast<intptr_t>(elem_addr - buff_start);
 
             if (elem_addr < buff_start || offs > static_cast<intptr_t>(N * m_p_storage->elem_size)) {
                 throw std::out_of_range("Attempt to deallocate pointed to memory outside of block allocator managed bounds");

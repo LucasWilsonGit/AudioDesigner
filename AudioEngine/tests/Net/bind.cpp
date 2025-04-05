@@ -23,7 +23,7 @@ int main() {
         (void)ep2;
         return 1;
     }
-    catch (Net::net_error const& e) {
+    catch (Net::net_error const&) {
         Net::close(sock);
     }
 

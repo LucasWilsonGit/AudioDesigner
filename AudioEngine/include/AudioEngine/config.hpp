@@ -9,7 +9,9 @@
 #include <algorithm>
 #include <type_traits>
 #include <tuple>
-
+#include <optional>
+#include <variant>
+#include <iostream>
 
 
 #define TRIVIAL_IDEN_DEFINE(alias, type) \
@@ -20,10 +22,12 @@ namespace AudioEngine {
     template <class CharT, size_t Alignment>
     class cfg_parser_context {
         buffer_reader<CharT, Alignment>& input;
-        std::vector<std::streampos> stack;
+        std::vector<size_t> stack;
 
     public:
         explicit cfg_parser_context(buffer_reader<CharT, Alignment>& input) : input(input), stack({input.tellg()}) {}
+        cfg_parser_context(cfg_parser_context const&)  = delete;
+        cfg_parser_context *operator=(cfg_parser_context const&) = delete;
 
         void push_pos() { stack.push_back(input.tellg()); }
         void pop_pos() { input.seekg(stack.back()); stack.pop_back(); }
@@ -90,11 +94,94 @@ namespace AudioEngine {
         std::string parser_type() { return "DspCfgBool"; }
     };
 
-    TRIVIAL_IDEN_DEFINE(DSPLITERAL_CfgInt64, int64_t);
-    using dsp_cfg_int64_parser_impl = dsp_cfg_trivial_parser_impl<int64_t, DSPLITERAL_CfgInt64>;
-
     TRIVIAL_IDEN_DEFINE(DSPLITERAL_CfgString, std::string);
     using dsp_cfg_string_parser_impl = dsp_cfg_trivial_parser_impl<std::string, DSPLITERAL_CfgString>;
+
+    class integer_parser_result {
+        std::variant<int64_t, uint64_t> m_value; 
+        
+    public:
+        integer_parser_result(int64_t const& v) 
+        :
+            m_value(v)
+        {}
+
+        integer_parser_result(uint64_t const& v)
+        :
+            m_value(v)
+        {}
+
+        template <std::integral T>
+        T get_as() const {
+            return std::visit([](auto& v) -> T {
+                using v_t = std::decay_t<decltype(v)>;
+                if constexpr (std::is_signed_v<v_t>) { 
+                    if constexpr (std::is_unsigned_v<T>)
+                        throw cfg_parse_error("Attempt to extract signed config value as unsigned type");
+                    else {
+                        if (v > std::numeric_limits<T>::max()) {
+                            throw cfg_parse_error("Attempt to parse signed config value into insufficient storage type");
+                        }
+                        else {
+                            return static_cast<T>(v);
+                        }
+                    }
+                }
+                else {
+                    if (v > static_cast<std::make_unsigned_t<T>>(std::numeric_limits<T>::max())) {
+                        throw cfg_parse_error("Attempt to parse unsigned config value into insufficient storage type");
+                    }
+                    else {
+                        return static_cast<T>(v);
+                    }
+                }
+            }, m_value);
+        }
+
+        template <std::integral T>
+        operator T() const {
+            return get_as<T>();
+        }
+    };
+
+    class dsp_cfg_integer_parser_impl {
+        std::string m_identifier = "DspCfgIntegerType";
+    public:
+        using ValueType = integer_parser_result;
+
+        template <class CharT, size_t Alignment>        
+        std::optional<ValueType> parse(cfg_parser_context<CharT, Alignment>& ctx) {
+            auto& input = ctx.reader();
+            
+            int64_t signed_value;
+            uint64_t unsigned_value;
+
+            if (!(input >> m_identifier))
+                return std::nullopt;
+            
+            auto pos = input.tellg();
+            if ( input >> unsigned_value ) {
+                return unsigned_value;
+            }
+            else {
+                input.clear_fail();
+                input.seekg(pos);
+
+                if (!(input >> signed_value)) {
+                    return std::nullopt;
+                }
+                else {
+                    return signed_value;
+                }
+            }
+
+            //unreachable
+            //throw std::runtime_error("Bad code path");
+        }
+
+        std::string identifier() { return m_identifier; }
+        std::string parser_type() { return "DspCfgIntegerType"; }
+    };
 
     struct probe_input_cfg {
         std::string in_service;
@@ -164,10 +251,14 @@ namespace AudioEngine {
         }
 
         template <class Type>
-        [[nodiscard]] Type const& get(std::string_view const& view) const {
+        [[nodiscard]] decltype(auto) get(std::string_view const& view) const {
             for (auto& e : m_cfg_fields) {
                 if (e.first == view) {
-                    return std::get<Type>(e.second);
+                    if constexpr (std::is_integral_v<Type> && !std::is_same_v<Type, bool>) {
+                        return std::get<integer_parser_result>(e.second).get_as<Type>();
+                    }
+                    else
+                        return std::get<Type>(e.second);
                 }
             }
             throw dsp_error(format("Failed to find field {}\n", view));
@@ -209,6 +300,7 @@ namespace AudioEngine {
 
             std::optional<typename Parser::ValueType> result = parser.parse(ctx);
             if (result.has_value()) {
+                std::cout << "Parsed config field " << parser.identifier() << " was " << parser.parser_type() << "\n";
                 
                 m_cfg.add_field(parser.identifier(), std::move(*result));
                 ctx.success_pos();
@@ -227,13 +319,16 @@ namespace AudioEngine {
     public:
         using cfg_storage_t = std::vector<cfg_pair_t>;
 
-        dsp_cfg_parser(std::unique_ptr<CharT> buffer, size_t buff_size) {
-            buffer_reader<CharT, Alignment> reader(std::move(buffer), buff_size);
+        dsp_cfg_parser(dsp_cfg_parser const&) = delete;
+        dsp_cfg_parser* operator=(dsp_cfg_parser const&) = delete;
+
+        dsp_cfg_parser(CharT const* buffer, size_t buff_size) {
+            buffer_reader<CharT, Alignment> reader(buffer, buff_size);
             cfg_parser_context context = cfg_parser_context(reader);
 
             while (reader) {
                 if (!try_parse_all(context)) {
-                    reader.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); //Skip the current line
+                    reader.ignore(std::numeric_limits<size_t>::max(), '\n'); //Skip the current line
                 }
             }
 
@@ -257,17 +352,36 @@ namespace AudioEngine {
                 throw Memory::memory_error(format("Failed to allocate {} bytes of {} byte aligned memory.", buffsize, Alignment));
             
             bfile.seekg(0);
-            if (!bfile.read(file_buffer.get(), buffsize))
-                throw cfg_parse_error( format("Failed to read file {} into buffer ({} bytes)", path, buffsize));
+            size_t unread = buffsize;
+            size_t read = 0;
+            constexpr size_t readmax = static_cast<size_t>(std::numeric_limits<std::streamsize>::max());
+            while (unread > 0) {
+                std::streamsize readsize = static_cast<std::streamsize>(std::min(unread, readmax)); //safe max read size
+                auto& res = bfile.read(
+                    reinterpret_cast<CharT*>(
+                        reinterpret_cast<uintptr_t>(file_buffer.get()) + read
+                    ),
+                    readsize
+                );
+                std::streamsize readcount = bfile.gcount();
+                if (!res || (bfile.gcount() == 0 && !bfile.eof())) 
+                    throw cfg_parse_error(format("Failed to read file {}, read size {} bytes", path, readsize));
+                
+                #ifndef NDEBUG 
+                if (readcount < 0)
+                    throw std::runtime_error("WHAT!? Negative gcount()");
+                #endif
 
+                unread -= readcount;
+                read += readcount;
+            }
 
-
-            buffer_reader<CharT, Alignment> reader(std::move(file_buffer), buffsize);
+            buffer_reader<CharT, Alignment> reader(file_buffer.get(), buffsize);
             cfg_parser_context context = cfg_parser_context(reader);
 
             while (reader) {
                 if (!try_parse_all(context)) {
-                    reader.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); //Skip the current line
+                    reader.ignore(std::numeric_limits<size_t>::max(), '\n'); //Skip the current line
                 }
             }
 
@@ -281,16 +395,21 @@ namespace AudioEngine {
 
     using base_cfg_parsers = std::tuple<
         AudioEngine::dsp_cfg_bool_parser_impl,
-        AudioEngine::dsp_cfg_int64_parser_impl,
+
+        AudioEngine::dsp_cfg_integer_parser_impl,
+
         AudioEngine::dsp_cfg_string_parser_impl
     >;
 
     using monitor_cfg_parsers = std::tuple<
         AudioEngine::dsp_cfg_monitor_input_parser_impl
     >;
-
     
+    template <class CharT, size_t Align, typename Tuple>
+    struct parser_from_tuple;
 
-    
-
+    template <class CharT, size_t Align, typename ... Types>
+    struct parser_from_tuple<CharT, Align, std::tuple<Types...>> {
+        using type = dsp_cfg_parser<CharT, Align, Types...>;
+    };
 }

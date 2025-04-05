@@ -1,9 +1,13 @@
+#pragma warning(push, 0)
+
 #include <iostream>
 #include "AudioEngine/shm.hpp"
 #include <windows.h>
 #include <winnt.h>
 #include <memoryapi.h>
 #include <processthreadsapi.h>
+
+#pragma warning(pop, 0)
 
 namespace Memory {
     class temporary_handle {
@@ -19,6 +23,9 @@ namespace Memory {
 
     std::string memory_platform_error::get_error_msg() {
         auto err = GetLastError();
+        if (err == 0)
+            return "";
+
         char* buf = nullptr;
         FormatMessageA(
             FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, 
@@ -54,6 +61,26 @@ namespace Memory {
         return temporary_handle(hnd);
     }
 
+    bool check_privilege_enabled(temporary_handle const& tok_handle, LPCSTR privilege) {
+        LUID luid;
+        if (!LookupPrivilegeValue(nullptr, privilege, &luid)) {
+            throw memory_platform_error("Lookup privilege value failed");
+        }
+
+        PRIVILEGE_SET ps;
+        ps.PrivilegeCount = 1;
+        ps.Control = PRIVILEGE_SET_ALL_NECESSARY;
+        ps.Privilege[0].Luid = luid;
+        ps.Privilege[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+        BOOL result = false;
+        if (!PrivilegeCheck(tok_handle.peek_handle(), &ps, &result)) {
+            return false;
+        }
+
+        return result;
+    }
+
     bool enable_privilege(temporary_handle const& tok_handle, LPCSTR privilege) {
         TOKEN_PRIVILEGES Privs = {};
         Privs.PrivilegeCount = 1;
@@ -61,14 +88,14 @@ namespace Memory {
         if(LookupPrivilegeValue(0, privilege, &Privs.Privileges[0].Luid))
         {
             if (::AdjustTokenPrivileges(tok_handle.peek_handle(), FALSE, &Privs, 0, 0, 0))
-                return true;
+                return check_privilege_enabled(tok_handle, privilege);
             else
                 throw memory_platform_error("Failed AdjustTokenPrivileges in enable_privileges: " + std::string(privilege));
         }
         else
             throw memory_platform_error("LookupPrivilegeValue failed: " + std::string(privilege));
         
-        return false;
+        //return false;
     }
 
     //returns bool to allow for static assignment in init method
@@ -80,9 +107,9 @@ namespace Memory {
         if (!enable_privilege(tok_handle, SE_LOCK_MEMORY_NAME))
             throw memory_platform_error("Failed to elevate SE_LOCK_MEMORY_NAME\n");
         if (!enable_privilege(tok_handle, SE_CREATE_GLOBAL_NAME))
-            throw memory_platform_error("Failed to elevate SE_LOCK_MEMORY_NAME\n");
+            throw memory_platform_error("Failed to elevate SE_CREATE_GLOBAL_NAME\n");
 
-        std::cout << format("Enable large pages2 {} \n", tok_handle.peek_handle());
+        std::cout << format("Enable large pages: Privileges granted {} \n", tok_handle.peek_handle());
 
         return true;
     }
@@ -93,17 +120,17 @@ namespace Memory {
     }
 
     mapping make_mapping(std::string const& name, size_t size, uint32_t access_flag) {
-        if (size % get_page_size() != 0)
+        if ( (size & (get_page_size() - 1)) != 0)
             throw memory_error("Requested mapping that is not a multiple of the minimum large page size");
 
         LARGE_INTEGER winsize;
-        winsize.QuadPart = size;
+        winsize.QuadPart = static_cast<LONGLONG>(size);
 
-        HANDLE handle = CreateFileMapping(
+        HANDLE handle = CreateFileMappingA(
             INVALID_HANDLE_VALUE,
             NULL,
             access_flag | SEC_LARGE_PAGES | SEC_COMMIT,
-            winsize.HighPart,
+            static_cast<DWORD>(winsize.HighPart),
             winsize.LowPart,
             name.data()
         );
@@ -114,12 +141,7 @@ namespace Memory {
         if (buffer == nullptr)
             throw memory_platform_error("Failed to map view of file");
         
-        return mapping{
-            .name = name,
-            .handle = handle,
-            .size = size,
-            .data = buffer
-        };
+        return mapping(name, handle, size, buffer);
     }
 
 
@@ -154,7 +176,7 @@ namespace Memory {
     void* win32mmapapi<PageSize>::data(mapping const& mapping) noexcept {
         return mapping.data;
     }
-    template void* win32mmapapi<pagesize_2MB>::data(mapping const&);
-    template void* win32mmapapi<pagesize_4MB>::data(mapping const&);
+    template void* win32mmapapi<pagesize_2MB>::data(mapping const&) noexcept;
+    template void* win32mmapapi<pagesize_4MB>::data(mapping const&) noexcept;
 
 }

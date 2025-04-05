@@ -1,6 +1,8 @@
 #pragma once
 
 #include <vector>
+#include <array>
+#include <optional>
 
 namespace AudioEngine {
 
@@ -21,6 +23,9 @@ namespace AudioEngine {
         struct TypeStorage {
             Type value;
             size_t key_index;
+
+            TypeStorage() = delete;
+            TypeStorage(Type&& t, size_t k) : value(t), key_index(k) {}
         };
 
         using alloc_t = typename Alloc::template rebind<TypeStorage>::other; 
@@ -64,8 +69,9 @@ namespace AudioEngine {
             size_t vidx = m_values.size();
 
             m_keys[kidx] = vidx;
-
-            m_values.push_back( TypeStorage(std::forward<Type>(t), kidx) );
+            
+            TypeStorage ts{std::forward<Type>(t), kidx};
+            m_values.push_back( std::move(ts) );
 
             return *(entry_handle*)(&kidx);
         }

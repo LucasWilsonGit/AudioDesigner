@@ -2,15 +2,11 @@ cmake_minimum_required(VERSION 3.25 FATAL_ERROR)
 
 set(CMAKE_SUPPRESS_REGENERATION FALSE)
 
-set(WINDOWS_PLATFORMS "Windows" "MSYS" "CYGWIN")
-list(FIND WINDOWS_PLATFORMS "MSYS" audiodesigner_platform_index)
-function(iswindows)
-    if (NOT "${audiodesigner_platform_index}" STREQUAL "-1" )
-        set(LASTCALL 1 PARENT_SCOPE)
-        return()
-    endif()
-    set(LASTCALL 0 PARENT_SCOPE)
-endfunction()
+include(${CMAKE_CURRENT_SOURCE_DIR}/build_utils.cmake)
+detect_msvc(MSVC)
+setup_global_compiler_options()
+iswindows() #writes ISWINDOWS toplevel variable
+
 
 enable_testing()
 option(TESTING_ENABLED "Toggle all testing" ON)
@@ -21,39 +17,38 @@ option(RINGBUFFER_TESTING "Enable testing for ringbuffers" ON)
 
 set(CMAKE_INSTALL_PREFIX "$CMAKE_CURRENT_SOURCE_DIR/_install")
 
-if ( CMAKE_COMPILER_IS_GNUCC )
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wfloat-equal")
+add_subdirectory(ext) 
 
-    if ( CMAKE_BUILD_TYPE MATCHES "Release|RelWithDebInfo" )
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
-    endif()
+if ( CMAKE_COMPILER_IS_GNUCC )
+    add_compile_options(-Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wfloat-equal -std=c++20)
 endif()
 
-message("prefix path: ${CMAKE_PREFIX_PATH} include path: ${CMAKE_INCLUDE_PATH} lib path: ${CMAKE_LIBRARY_PATH}")
+if(MSVC)
+    add_compile_options(/wd4514 /std:c++20)
+    add_compile_options(/external:anglebrackets /external:W0 /Wall /WX /wd4324 /wd5027 /wd4514 /wd4625 /wd4626 /wd4711 /wd4710 /std:c++20)  
+endif()
+
 
 project(AUDIODESIGNER)
 
 #wrapper for test registration which does nice cool things :)
 function(lib_add_test test_target test_source test_libs_indirect)
-  add_executable(${test_target} ${test_source})
-  set_property(TARGET ${test_target} PROPERTY CXX_STANDARD 20) #C++ 20
-  target_link_libraries(${test_target} PUBLIC "${${test_libs_indirect}}") #unpack test libs indirect into link libraries
-  target_compile_options(${test_target} PRIVATE -Wall -Wextra -mavx2)
-  set_target_properties( ${test_target}
-    PROPERTIES
-    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
-  )
-  add_test(
-    NAME "ctest_${test_target}"
-    COMMAND ${test_target}
-  )
+    add_executable(${test_target} ${test_source})
+    target_link_libraries(${test_target} PUBLIC "${${test_libs_indirect}}") #unpack test libs indirect into link libraries
+    set_target_properties( ${test_target}
+        PROPERTIES
+        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+    )
+    add_test(
+        NAME "ctest_${test_target}"
+        COMMAND ${test_target}
+    )
 
-  message(STATUS "Add test ${test_target} with file ${test_source}")
-
+    message(STATUS "Add test ${test_target} with file ${test_source}")
 endfunction()
 
-add_subdirectory(ext)
+add_subdirectory(ArgParser)
 add_subdirectory(AudioEngine)
 add_subdirectory(src)

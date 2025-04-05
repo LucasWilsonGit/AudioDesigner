@@ -19,9 +19,18 @@ FetchContent_Declare(
 #changing the SOURCE_DIR means I have to populate it manually before I can let MakeAvailable do the regular update and configure 
 list(APPEND EXT_PROJECTS "miniaudio")
 
+FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest
+    GIT_PROGRESS TRUE
+    GIT_TAG v1.16.0
+    TMP_DIR ${CMAKE_BINARY_DIR}/tmp/googletest
+)
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE) #https://google.github.io/googletest/quickstart-cmake.html
+list(APPEND EXT_PROJECTS "googletest")
 
-iswindows()
-if (${LASTCALL})
+
+if (ISWINDOWS)
     #TODO: Use PATCH_COMMAND instead of my hacked together execute_process
     FetchContent_Declare(
         wepoll
@@ -30,7 +39,7 @@ if (${LASTCALL})
         GIT_TAG 7958b3048fa1e85ab5a71f18a07c24e1b1e64f1e #v1.5.8 with some API fixes
         TMP_DIR ${CMAKE_BINARY_DIR}/tmp/wepoll
         PATCH_COMMAND ${GIT_EXECUTABLE} apply --ignore-whitespace --verbose "${CMAKE_CURRENT_SOURCE_DIR}/wepoll-utf8.patch"
-        SOURCE_DIR dist/wepoll
+        SOURCE_DIR ${CMAKE_SOURCE_DIR}/ext/wepoll
     )
     list(APPEND EXT_PROJECTS "wepoll")
 endif()
@@ -44,10 +53,10 @@ set(CMAKE_ARGS
 FetchContent_MakeAvailable(${EXT_PROJECTS})
 if (NOT EXISTS "${wepoll_SOURCE_DIR}/patched.ad")
     message("Patching wepoll...")
-    execute_process(
-        COMMAND ${GIT_EXECUTABLE} apply --ignore-whitespace --verbose "${CMAKE_CURRENT_SOURCE_DIR}/wepoll-utf8.patch"
-        WORKING_DIRECTORY "${wepoll_SOURCE_DIR}"
-    )
+    #execute_process(
+    #    COMMAND ${GIT_EXECUTABLE} apply --ignore-whitespace --verbose "${CMAKE_CURRENT_SOURCE_DIR}/wepoll-utf8.patch"
+    #    WORKING_DIRECTORY "${wepoll_SOURCE_DIR}"
+    #)
     file(WRITE "${wepoll_SOURCE_DIR}/patched.ad" "yes")
 endif()
 

@@ -2,7 +2,7 @@
 
 
 #include <fstream>
-
+#include <optional>
 
 #include "core.hpp"
 #include "block_allocator.hpp"
@@ -17,36 +17,39 @@ namespace AudioEngine {
     template <class CharT, size_t Alignment = 32>
     class buffer_reader {
     private:
-        std::unique_ptr<CharT> m_buffer;
-        std::streamsize m_size;
-        std::streamoff m_pos;
+        nonowning_ptr<CharT const> m_buffer;
+        size_t m_size;
+        size_t m_pos;
         bool m_fail;
 
     protected:
-        [[nodiscard]] CharT& get_char(size_t idx) const noexcept {
-            return std::assume_aligned<Alignment>(static_cast<CharT*>(m_buffer.get()))[idx];
+        [[nodiscard]] CharT const& get_char(size_t idx) const noexcept {
+            return std::assume_aligned<Alignment>(m_buffer)[idx];
         }
 
-        [[nodiscard]] CharT& curr_char() const noexcept { return get_char(m_pos); }
+        //Peeks the current character in the stream
+        [[nodiscard]] CharT const& curr_char() const noexcept { return get_char(m_pos); }
     
     public:
-        explicit buffer_reader(CharT *buffer, size_t size) :
+        using string_view_t = std::basic_string_view<CharT>;
+        explicit buffer_reader(CharT const *buffer, size_t size) :
             m_buffer(buffer), m_size(size), m_pos(0), m_fail(false)
         {}
 
-        buffer_reader(std::unique_ptr<CharT> buffer, size_t size) :
-            m_buffer(std::move(buffer)), m_size(size), m_pos(0), m_fail(false)
+        explicit buffer_reader(std::basic_string_view<CharT> buffer) :
+            m_buffer(buffer.data()), m_size(buffer.length()), m_pos(0), m_fail(false)
         {}
+
+        buffer_reader(buffer_reader const&) = delete;
+        buffer_reader* operator=(buffer_reader const&) = delete;
 
         buffer_reader& operator>>(std::basic_string<CharT>& word) {
             word.clear();
 
-            
-
             while (m_pos < m_size && (curr_char() == '\r' || std::isspace(curr_char())))
                 ++m_pos;
             
-            std::streamoff word_start_pos = m_pos;
+            size_t word_start_pos = m_pos;
             
             while (m_pos < m_size && curr_char() != '\r' && !std::isspace(curr_char()))
                 ++m_pos;
@@ -55,7 +58,7 @@ namespace AudioEngine {
             if (m_pos < word_start_pos) [[unlikely]]
                 throw std::runtime_error("internal counter overflow during file read (big file?)");
 
-            std::string_view slice( &get_char(word_start_pos), m_pos - word_start_pos);
+            string_view_t slice( &get_char(word_start_pos), m_pos - word_start_pos);
 
             word += slice;
 
@@ -65,7 +68,7 @@ namespace AudioEngine {
             return *this;
         }
 
-        __attribute__((noinline)) buffer_reader& operator>>(std::optional<std::basic_string<CharT>>& oword) {
+        buffer_reader& operator>>(std::optional<std::basic_string<CharT>>& oword) {
             std::basic_string<CharT> s;
             auto& res = (*this >> s);
             oword = s;
@@ -73,20 +76,25 @@ namespace AudioEngine {
             return res;
         }
 
-        buffer_reader& operator>>(int64_t& dst) {
-            while (m_pos < m_size && std::isspace(curr_char()) ) 
+        template <std::integral T>
+        buffer_reader& operator>>(T& dst) {
+            while (m_pos < m_size && std::isspace(curr_char()))
                 ++m_pos;
+            
+            size_t word_start_pos = m_pos;
 
-            std::streamoff word_start_pos = m_pos;
+            if (curr_char() == '-' && m_pos < m_size)
+                ++m_pos;
 
             while (m_pos < m_size && std::isdigit(curr_char()) )
                 ++m_pos;
 
-            if (m_pos < word_start_pos) [[unlikely]] //overflow
+            if (m_pos < word_start_pos) [[unlikely]] 
                 throw std::runtime_error("internal counter overflow during file read (big file?)");
             
-            std::string_view slice( &get_char(word_start_pos), m_pos - word_start_pos);
+            string_view_t slice( &get_char(word_start_pos), m_pos - word_start_pos);
             
+            static_assert(std::is_same_v<CharT, wchar_t> || std::is_same_v<CharT, char>, "Cannot parse with std::from_chars for CharT that is not char/wchar_t");
             std::from_chars_result res = std::from_chars(slice.data(), slice.data() + slice.size(), dst);
             
             if (res.ec == std::errc::invalid_argument || res.ec == std::errc::result_out_of_range)
@@ -95,26 +103,27 @@ namespace AudioEngine {
             return *this;
         }
 
-        buffer_reader& operator>>(std::optional<int64_t>& dst) {
-            int64_t v = 0;
+        template <std::integral T>
+        buffer_reader& operator>>(std::optional<T>& dst) {
+            T v = 0;
             auto& res = (*this >> v);
             dst = v;
             return res;
         }
 
-        [[nodiscard]] std::streamoff tellg() const noexcept {
+        [[nodiscard]] size_t tellg() const noexcept {
             return m_pos;
         }
 
-        void seekg(std::streamoff pos) {
+        void seekg(size_t pos) {
             if (pos <= m_size) {
                 m_pos = pos;
             } else
                 throw std::out_of_range(format("Provided pos {} was outside of file size {}", pos, m_size));
         }
 
-        void ignore(std::streamoff count, CharT ignore) {
-            while (m_pos < m_size && curr_char() != ignore && count-- > 0)
+        void ignore(size_t count, CharT ignore) {
+            while (m_pos < m_size && curr_char() != ignore && count-- > 0) 
                 ++m_pos;
         }
 

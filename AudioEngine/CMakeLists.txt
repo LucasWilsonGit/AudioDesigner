@@ -4,12 +4,12 @@ add_library(AudioEngine STATIC)
 set(AudioEngine_DIR "$CMAKE_CURRENT_SOURCE_DIR" PARENT_SCOPE)
 
 set_property(TARGET AudioEngine PROPERTY CXX_STANDARD 20) #C++ 20
+set_property(TARGET AudioEngine PROPERTY CXX_STANDARD_REQUIRED ON)
 
-target_include_directories(AudioEngine PUBLIC include "${EXT_PROJECT_SOURCES}" "include/")
+target_include_directories(AudioEngine PRIVATE include "${EXT_PROJECT_SOURCES}" "include/")
+target_include_directories(AudioEngine PUBLIC SYSTEM include "${EXT_PROJECT_SOURCES}" "include/")
 
 target_link_libraries(AudioEngine PUBLIC wepoll)
-
-target_compile_options(AudioEngine PRIVATE -g)
 
 add_subdirectory(src)
 
@@ -34,8 +34,7 @@ if (TESTING_ENABLED)
     if (NET_TESTING)
         #test net stuff here
         set(NET_TEST_LIBS AudioEngine)
-        iswindows()
-        if (${LASTCALL})
+        if (ISWINDOWS)
             set(NET_TEST_LIBS "${NET_TEST_LIBS}" ws2_32)
         endif()
 
@@ -71,7 +70,7 @@ if (TESTING_ENABLED)
     foreach(test_source IN LISTS ALLOC_TEST_SOURCES)
         get_filename_component(rb_test_name ${test_source} NAME_WE)
 
-        lib_add_test("ring_buffer_${rb_test_name}" "${test_source}" ALLOC_TEST_LIBS)
+        lib_add_test("block_allocator_${rb_test_name}" "${test_source}" ALLOC_TEST_LIBS)
     endforeach()
 
     set(SPARSE_TEST_LIBS AudioEngine)

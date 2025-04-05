@@ -8,9 +8,9 @@ int main() {
     AudioEngine::dsp_cfg_parser<char, 16,
             AudioEngine::dsp_cfg_bool_parser_impl,
             AudioEngine::dsp_cfg_monitor_input_parser_impl,
-            AudioEngine::dsp_cfg_int64_parser_impl,
+            AudioEngine::dsp_cfg_integer_parser_impl,
             AudioEngine::dsp_cfg_string_parser_impl
-        > parser(std::move(buf), input.size());
+        > parser(buf.get(), input.size());
 
     auto config = parser.get_config();
 

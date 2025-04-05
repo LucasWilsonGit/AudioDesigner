@@ -2,12 +2,13 @@
 
 #include <memory>
 #include <optional>
+#include <span>
 
 namespace AudioEngine {
     template <class SampleType, class Allocator = std::allocator<SampleType>>
     class pcm_buffer {
     public:
-        using Alloc_T = typename std::allocator_traits<Allocator>::rebind_alloc<SampleType>;
+        using Alloc_T = typename std::allocator_traits<Allocator>::template rebind_alloc<SampleType>;
         using ValueType = SampleType;
     private:
         std::optional<Alloc_T> m_allocator;

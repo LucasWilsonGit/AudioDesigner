@@ -7,6 +7,13 @@ class buffer_reader_tester : public AudioEngine::buffer_reader<CharT, Alignment>
 public:
     using AudioEngine::buffer_reader<CharT, Alignment>::buffer_reader;
 
+    buffer_reader_tester() = delete;
+    buffer_reader_tester(buffer_reader_tester const&) = delete;
+    buffer_reader_tester(buffer_reader_tester&&) = delete;
+    buffer_reader_tester *operator=(buffer_reader_tester const&) = delete;
+    buffer_reader_tester *operator=(buffer_reader_tester &&) = delete;
+
+
     CharT& curr_char() const noexcept { return AudioEngine::buffer_reader<CharT, Alignment>::curr_char(); }
 };
 
@@ -49,7 +56,7 @@ int main() {
     char const* msg = "Hello, world! This is a test message\nThe quick brown fox, jumped over the lazy dog.\r\n\r\nLorem ipsum!";
     auto [buff, len] = make_test_buffer<char>(msg);
 
-    buffer_reader_tester<char, 16> reader(std::move(buff), len);
+    buffer_reader_tester<char, 16> reader(buff.get(), len);
 
     test_reader_type(reader, 7, "Hello, world! This is a test message");
     test_reader_type(reader, 9, "The quick brown fox, jumped over the lazy dog.");
@@ -58,6 +65,7 @@ int main() {
         test_reader_type(reader, 2, "Lorem ipsum! THIS TEST MUST FAIL");
         return -1;
     }
-    catch (test_failure_err const& e) {
+    catch (test_failure_err const&) {
     }
+    return 0;
 }

@@ -41,7 +41,7 @@ int main() {
         
         return 1;
     }
-    catch (Net::net_error const& e) {
+    catch (Net::net_error const&) {
         std::cout << "Pass [should fail] case\n";
     }
 

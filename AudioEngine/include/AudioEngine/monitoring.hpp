@@ -49,7 +49,7 @@ namespace AudioEngine {
             static constexpr size_t padval = 16 + sizeof(collection_t);
             
             //force 16 byte alignment (Turn on iff pragma pack 1)
-            char pad[ ((padval + 15 ) / 16) * 16 - padval ]; //pad structure size to first multiple of 16
+            char pad[ ((padval + 15 ) & ~15ull)]; //pad structure size to first multiple of 16
 
         public:
             probe(char const *name, probe_metadata *meta, datapoint_alloc_t& allocator) :
