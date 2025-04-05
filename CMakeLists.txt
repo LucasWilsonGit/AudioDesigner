@@ -51,4 +51,4 @@ endfunction()
 
 add_subdirectory(ArgParser)
 add_subdirectory(AudioEngine)
-add_subdirectory(src)
+add_subdirectory(Plugins)
