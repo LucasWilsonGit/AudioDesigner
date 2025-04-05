@@ -21,13 +21,23 @@ conf.cfg for dsp_basic can be found in ./src/dsp_basic/
 I recommend making a build directory within the project.
 
 ~~~
+   mkdir ./_build && cd ./_build
    cmake .. -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc -DCMAKE_BUILD_TYPE=RelWithDebInfo
    cmake --build . -j24
 ~~~
 
-When building on windows, any issues with multiple target patterns from compiler-depends.make files is likely a problem from MSYS/MinGW. I have been using mingw-w64-x86_64-cmake and mingw-w64-x86_64-ninja from an MSys64 shell to avoid this problem. 
+When building on windows with GNU build tools / mingw, any issues with multiple target patterns from compiler-depends.make files is likely a problem from MSYS/MinGW. I have been using mingw-w64-x86_64-cmake and mingw-w64-x86_64-ninja from an MSys64 shell to avoid this problem. 
 
 A workaround if you are not willing to use the same build tools is to use --clean-first to avoid having issues from dependencies, but this will extend build times.
+
+##### MSVC 
+
+Should build pretty trivially with MSVC from the command line invoking CMake, but the configuration must also be passed to MSVC at the build stage:
+~~~
+   cd ./_build
+   cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
+   cmake --build . -j24 --config Release
+~~~
 
 #### Enabling gpedit.msc on Windows:
 
@@ -54,6 +64,8 @@ This requires a user account be configured to run the allocator service, which w
 #### Running tests
 
 The project has ctest enabled in the root build tree so you should just be able to run ctest . from within the build directory. 
+
+**When building tests with MSVC stick to the release configuration, otherwise the block allocator unit tests will fail when the VC++ stl implementation starts allocating random crap related to vector implementation state debugging stuff. Maybe there is some way I can set up my flags to stop this but I haven't found it yet.**
 
 #### Debugging
 
