@@ -6,8 +6,8 @@ set(AudioEngine_DIR "$CMAKE_CURRENT_SOURCE_DIR" PARENT_SCOPE)
 set_property(TARGET AudioEngine PROPERTY CXX_STANDARD 20) #C++ 20
 set_property(TARGET AudioEngine PROPERTY CXX_STANDARD_REQUIRED ON)
 
-target_include_directories(AudioEngine PRIVATE include "${EXT_PROJECT_SOURCES}" "include/")
-target_include_directories(AudioEngine PUBLIC SYSTEM include "${EXT_PROJECT_SOURCES}" "include/")
+target_include_directories(AudioEngine PRIVATE include "${EXT_PROJECT_SOURCES}" "include/") #private headers may warn
+target_include_directories(AudioEngine PUBLIC SYSTEM include "${EXT_PROJECT_SOURCES}" "include/" "exportheaders/") #targets linking AudioEngine wont get warnings for these headers if system headers dont warn (good compiler)
 
 target_link_libraries(AudioEngine PUBLIC wepoll)
 
