@@ -9,6 +9,8 @@
 #include <iostream>
 #include <memory>
 
+#include "template_magic.hpp"
+
 /**
  * @brief A non-owning pointer to some externally managed resource which may be deallocated whilst this weak handle is held
  */
@@ -104,76 +106,12 @@ namespace AudioEngine {
         uint64_t _a[2];
     };
 
-    //SFINAE check if a variadic contains a type, compile-time shortcircuit out with std::disjunction
 
-    template <class T, class... Variadic>
-    using variadic_contains = std::disjunction<std::is_same<T, Variadic>...>;
+
+
+
     
-    template <class T, class... Variadic>
-    inline constexpr bool variadic_contains_v = variadic_contains<T, Variadic...>::value;
 
-
-
-    //SFINAE insert a type into a variadic (out as tuple) if not already contained in the variadic
-
-    template <class T, class... Variadic>
-    struct insert_if_not_found {
-        using type = std::conditional_t<
-            variadic_contains<T, Variadic...>::value,
-            std::tuple<Variadic...>,
-            std::tuple<Variadic..., T>
-        >;
-    };
-
-
-
-    //SFINAE merge two variadics without any duplicates, requires that the first variadic has no duplicates
-
-    template <class... Types>
-    struct variadic_merge_impl;
-
-    template <class... MergedTypes>
-    struct variadic_merge_impl<std::tuple<MergedTypes...>> {
-        using type = std::tuple<MergedTypes...>;
-    };
-
-    template <class... MergedTypes, class Head>
-    struct variadic_merge_impl<std::tuple<MergedTypes...>, Head> {
-        using type = typename insert_if_not_found<Head, MergedTypes...>::type;
-    };
-
-    template <class... MergedTypes, class Head, class... Tails>
-    struct variadic_merge_impl<std::tuple<MergedTypes...>, Head, Tails...> {
-        using type = variadic_merge_impl<
-            typename insert_if_not_found<Head, MergedTypes...>::type,
-            Tails...
-        >::type;
-    };
-
-
-
-
-
-
-    //SFINAE combine two tuples without duplicate contained types (requires the first tuple contains no duplicates)
-
-    template <class... ArgTypes>
-    struct tuple_combine {};
-
-    template <class... ArgTypes1, class... ArgTypes2>
-    struct tuple_combine<std::tuple<ArgTypes1...>, std::tuple<ArgTypes2...>> {
-        using type = variadic_merge_impl<std::tuple<ArgTypes1...>, ArgTypes2...>::type;
-    };
-
-    template <class TupleFirst, class... TupleOthers>
-    using tuple_combine_t = tuple_combine<TupleFirst, TupleOthers...>::type;
-
-
-
-
-
-
-
-
+    
 }
 
