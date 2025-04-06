@@ -17,15 +17,15 @@ option(RINGBUFFER_TESTING "Enable testing for ringbuffers" ON)
 
 set(CMAKE_INSTALL_PREFIX "$CMAKE_CURRENT_SOURCE_DIR/_install")
 
-add_subdirectory(ext) 
+
+add_subdirectory(ThirdParty) 
 
 if ( CMAKE_COMPILER_IS_GNUCC )
     add_compile_options(-Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wfloat-equal -std=c++20)
 endif()
 
 if(MSVC)
-    add_compile_options(/wd4514 /std:c++20)
-    add_compile_options(/external:anglebrackets /external:W0 /Wall /WX /wd4324 /wd5027 /wd4514 /wd4625 /wd4626 /wd4711 /wd4710 /std:c++20)  
+    add_compile_options(/external:anglebrackets /external:W0 /Wall /WX /wd4324 /wd5027 /wd4514 /wd4625 /wd4626 /wd4711 /wd4710 /wd5045 /std:c++20)  
 endif()
 
 
