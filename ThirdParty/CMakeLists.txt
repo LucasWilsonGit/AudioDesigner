@@ -39,7 +39,7 @@ if (ISWINDOWS)
         GIT_TAG 7958b3048fa1e85ab5a71f18a07c24e1b1e64f1e #v1.5.8 with some API fixes
         TMP_DIR ${CMAKE_BINARY_DIR}/tmp/wepoll
         PATCH_COMMAND ${GIT_EXECUTABLE} apply --ignore-whitespace --verbose "${CMAKE_CURRENT_SOURCE_DIR}/wepoll-utf8.patch"
-        SOURCE_DIR ${CMAKE_SOURCE_DIR}/ext/wepoll
+        SOURCE_DIR ${CMAKE_SOURCE_DIR}/ThirdParty/wepoll
     )
     list(APPEND EXT_PROJECTS "wepoll")
 endif()
