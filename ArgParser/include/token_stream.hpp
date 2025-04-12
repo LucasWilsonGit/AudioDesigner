@@ -1,15 +1,19 @@
 #pragma once
 
+#include "token.hpp"
+
 #include <vector>
 #include <stack>
 
 namespace ArgParser {
+
+
     class token_stream_tester;
 
-    template <class TokenType>
+    template <TokenType T>
     class token_stream { 
     public:
-        using token_t = TokenType;
+        using token_t = T;
 
         token_stream()
         :   m_tokens(),
@@ -42,7 +46,7 @@ namespace ArgParser {
         }
 
         [[nodiscard]] bool is_empty() const noexcept {
-            return m_tokens.empty();
+            return m_tokens.empty() || m_tokens.size() <= m_cursor;
         }
 
         [[nodiscard]] size_t size() const noexcept {

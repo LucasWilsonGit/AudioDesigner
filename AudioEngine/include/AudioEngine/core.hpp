@@ -45,12 +45,12 @@ template<class... Ts> struct overloads : Ts... { using Ts::operator()...; };
 template<class... Ts> overloads(Ts...) -> overloads<Ts...>;
 
 template <auto *funcptr_inst>
-struct function_ptr_traits {};
+struct function_ptr_traits;
 
 template <class ReturnType, class... ArgTypes, auto (*funcptr_inst)(ArgTypes...) -> ReturnType>
 struct function_ptr_traits<funcptr_inst> {
     using arg_types = std::tuple<ArgTypes...>;
-    using return_type = ReturnType;
+    using return_t = ReturnType;
 };
 
 

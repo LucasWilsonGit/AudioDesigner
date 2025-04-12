@@ -7,7 +7,7 @@
 
 using namespace ArgParser;
 
-using token_t = std::variant<string_token, identifier_token>;
+using token_t = token_wrapper_t<string_token, identifier_token>;
 
 class ArgParser::token_stream_tester {
 public:
@@ -42,7 +42,9 @@ TEST(TokenStreamTestSuite, TestConstructor) {
 
     EXPECT_FALSE(tokens.is_empty());
     EXPECT_EQ(tokens.size(), 4);
-    EXPECT_EQ(std::get<string_token>(tokens.current_token()), string_token("3524"));
+
+    auto variant = (std::variant<string_token, identifier_token> const&)tokens.current_token();
+    EXPECT_EQ(std::get<string_token>(variant), string_token("3524"));
 }
 
 TEST(TokenStreamTestSuite, CurrentToken) {

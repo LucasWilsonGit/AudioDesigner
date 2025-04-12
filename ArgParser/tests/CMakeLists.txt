@@ -11,7 +11,7 @@ function(add_gtest test_name test_source)
     )
     target_compile_options("${test_name}"
     PUBLIC
-        /Zd /Zi    
+        /Zi    
     )
     target_link_libraries("${test_name}"
         GTest::gtest_main
@@ -26,6 +26,7 @@ function(add_gtest test_name test_source)
 
 endfunction()
 
-add_gtest(token_stream token_stream.cpp)
+add_gtest(test_token_stream token_stream.cpp)
 add_gtest(arg_parser arg_parser.cpp)
+add_gtest(test_parsers parsers.cpp)
 
