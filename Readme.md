@@ -2,6 +2,10 @@
 # AudioDesigner  
 Microservice style audio processing framework I'm working on.
 
+Build status:
+
+Currently only compiling on Windows x64, MSVC, Clang, GCC 
+
 ## How to build and run binaries
 
 Requires at least CMake 3.25 
