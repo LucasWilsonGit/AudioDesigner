@@ -79,7 +79,6 @@ namespace ArgParser {
         static constexpr size_t step_count = sizeof...(Steps);
         using return_t = std::tuple<typename select_step_parser_t<Steps>::return_t...>;
 
-
         template <TokenType T>
         static std::optional<return_t> parse(token_stream<T>& stream) {
             intermediate_t intermediate;

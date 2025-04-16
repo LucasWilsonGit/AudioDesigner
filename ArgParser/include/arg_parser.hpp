@@ -56,22 +56,36 @@ namespace ArgParser {
     template <class T>
     concept TupleType = is_tuple<T>::value;
 
+    struct argument_identifier {
+        std::string_view name;
+        std::optional<char> tag;
+        uint8_t _padding[6];
+    };
+
+    bool operator<(argument_identifier const& l, argument_identifier const& r) {
+        if (l.tag && r.tag) {
+            return (l.tag < r.tag);
+        }
+        return l.name < r.name;
+    }
+
     template <class ValueParserT = void>
     struct argument_descriptor {
 
         using parser_t = select_step_parser_t<ValueParserT>;
+        using _parser_return_t = typename parser_t::return_t;
+        using value_t = std::conditional_t<!std::is_void_v<_parser_return_t>, std::optional<_parser_return_t>, std::optional<bool>>;
 
-        sd::optional<char> tag;
-        std::string_view name;
-        std::optional<typename parser_t::return_t> value;
+        argument_identifier iden;
+        value_t value;
 
         bool matches_identifier(identifier_token const& tok) {
             return std::visit([](auto const& val) -> bool {
                 if constexpr (std::is_same_v<char, decltype(val)>) {
-                    return tag.has_value() && *tag == val; 
+                    return iden.tag.has_value() && *(iden.tag) == val; 
                 }
                 else if constexpr (std::is_same_v<std::string_view, decltype(val)>) {
-                    return val == name;
+                    return val == iden.name;
                 }
                 else {
                     return false;
@@ -115,11 +129,12 @@ namespace ArgParser {
     private:
         template <ArgumentDescriptor T>    
         using parser_if_valid = std::conditional_t<
-            std::is_void_v<typename (typename T::parser_t)::return_t>,
+            std::is_void_v<typename T::parser_t::return_t>,
             std::tuple<>,
-            std::tuple<typename T::parser_t>;
+            std::tuple<typename T::parser_t>
+        >;
     public:
-        using type = decltype(std::tuple_cat(declval(parser_if_valid<Ts>)...));
+        using type = decltype(std::tuple_cat(declval<parser_if_valid<Ts>>()...));
     };
 
     template <class... Ts>
@@ -139,7 +154,6 @@ namespace ArgParser {
     >
     struct arg_parser_traits {
         using token_stream_t = token_stream<TokTy>;
-        using descriptors_t = std::tuple<ArgTys...>;
         using arg_descriptors_parsers = typename parsers_from_arg_descriptors_tuple<ArgDescriptorsTuple>::type;
         using extra_value_parsers = typename parsers_from_extra_values_tuple<ExtraValueParsersTuple>::type;
         using value_parsers_pack = tuple_combine_t< arg_descriptors_parsers, extra_value_parsers >;
@@ -155,17 +169,54 @@ namespace ArgParser {
         using arg_parser = sequence_parser< all_options_assignment_parser, all_positional_parser >; //loop of options assignments, then positional arguments
     };
 
+
+
     template <
         TokenType TokTy,
         TupleType TokenizersTuple = std::tuple<identifier_tokenizer, path_tokenizer, integer_tokenizer, string_tokenizer>, 
         TupleType ArgDescriptorsTuple = std::tuple<>,
         TupleType ExtraValueParsersTuple = std::tuple<>
     >
-    class arg_parser : arg_parser_traits {
+    class arg_parser {
+        using qual_traits = arg_parser_traits<TokTy, TokenizersTuple, ArgDescriptorsTuple, ExtraValueParsersTuple>;
 
-        descriptors_t descriptors;
-        std::map< identifier_token, std::optional<value_t> > options;
+        ArgDescriptorsTuple m_descriptors;
         
+        typename qual_traits::all_positional_parser::return_t positional_arguments; //vector< variant< value_ts... > >;
+
+        template <size_t I>
+        void init_arg() {
+            using arg_I_t = std::tuple_element_t<I, ArgDescriptorsTuple>;
+            auto& arg_desc = std::get<I>(m_descriptors);
+            if constexpr (std::is_void_v<arg_I_t::_parser_return_t>) {
+                arg_desc.value = false;
+            }
+        }
+
+        template <size_t... Is>
+        void init_args(std::index_sequence<Is...>) {
+            (init_arg<Is>(), ...);
+        }
+    public:
+        arg_parser(ArgDescriptorsTuple&& arg_descriptors, ExtraValueParsersTuple extra_value_parsers) 
+        :   m_descriptors(std::forward<ArgDescriptorsTuple>(arg_descriptors)) 
+        {
+            init_args(std::make_index_sequence<std::tuple_size_v<ArgDescriptorsTuple>>{});
+        }
+
+
+        void parse(token_stream<TokTy>& stream) {
+            
+            auto res = arg_parser::parse(stream);
+            if (!res) {
+                typename qual_traits::all_options_assignment_parser::return_t option_assignment_vector;
+                typename qual_traits::all_positional_parser::return_t positional_values_vector;
+
+                for (auto& assignment : option_assignment_vector) {
+
+                }
+            }
+        }
         
     };
 }

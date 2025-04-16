@@ -1,6 +1,7 @@
 #include "tokenizers.hpp"
 #include "parsers.hpp"
 #include "token_stream.hpp"
+#include "arg_parser.hpp"
 
 #include <tuple>
 #include <map>
