@@ -18,8 +18,6 @@ namespace ArgParser {
         { Parser::parse(s) };
     };
 
-    
-
     template <class ExpectedTokenType>
     struct expected_token_extractor {
         constexpr std::optional<ExpectedTokenType> operator()(ExpectedTokenType const& t) {
@@ -56,6 +54,8 @@ namespace ArgParser {
             return res;
         }
     };
+
+    using path_parser = token_unwrap_parser<path_token>;
 
     template <class T>
     struct select_step_parser {
@@ -111,7 +111,7 @@ namespace ArgParser {
             }
 
             if constexpr (__debugmode) {
-                std::cerr << "seequence_parser step " << I << " failed.\n";
+                std::cerr << "sequence_parser step " << I << " failed.\n";
             }
 
             return false;
@@ -127,6 +127,7 @@ namespace ArgParser {
     template <class Step>
     class loop_parser {
         using step_parser_t = select_step_parser_t<Step>;
+        static constexpr size_t min_results = 0;
     public:
         using return_t = std::vector<typename select_step_parser_t<Step>::return_t>;
         
@@ -143,7 +144,7 @@ namespace ArgParser {
                 accum.push_back(*std::move(res));
             }
 
-            if (accum.size() == 0) {
+            if (accum.size() < min_results) {
                 stream.fail_parse();
                 return std::nullopt;
             }
@@ -181,5 +182,18 @@ namespace ArgParser {
             return res;
         }
     };
+
+    template <class T>
+    struct alternatives_parser_from_parsers_tuple;
+
+    template <class... Ts>
+    struct alternatives_parser_from_parsers_tuple<std::tuple<Ts...>> {
+        using type = alternatives_parser<Ts...>;
+    };
+
+    template <class T>
+    using alternatives_parser_from_parsers_tuple_t = typename alternatives_parser_from_parsers_tuple<T>::type;
+
+
 
 }

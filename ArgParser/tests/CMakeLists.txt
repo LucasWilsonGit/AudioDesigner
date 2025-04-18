@@ -30,3 +30,16 @@ add_gtest(test_token_stream token_stream.cpp)
 add_gtest(arg_parser arg_parser.cpp)
 add_gtest(test_parsers parsers.cpp)
 
+
+add_executable("parser_example"
+    "parser_example.cpp"
+)
+target_compile_options("parser_example"
+PUBLIC
+    /Zi
+)
+target_include_directories("parser_example"
+PRIVATE
+    ../include/
+    ../../AudioEngine/exportheaders
+)

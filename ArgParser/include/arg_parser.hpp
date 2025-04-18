@@ -18,7 +18,8 @@
 
 namespace ArgParser {
     
-
+    template <class... Ts> struct overload : Ts... { using Ts::operator()...; };
+    template <class... Ts> overload(Ts...) -> overload<Ts...>;
     
     template <class Tokenizer, class Tuple>
     concept ValidTokenizer = requires(std::string_view s) {
@@ -134,7 +135,7 @@ namespace ArgParser {
             std::tuple<typename T::parser_t>
         >;
     public:
-        using type = decltype(std::tuple_cat(declval<parser_if_valid<Ts>>()...));
+        using type = tuple_combine_multi_t<parser_if_valid<Ts>...>;
     };
 
     template <class... Ts>
@@ -144,8 +145,6 @@ namespace ArgParser {
     struct parsers_from_extra_values_tuple<std::tuple<Ts...>> {
         using type = std::tuple<select_step_parser_t<Ts>...>;
     };
-
-
     template <
         TokenType TokTy,
         TupleType TokenizersTuple, 
@@ -157,20 +156,13 @@ namespace ArgParser {
         using arg_descriptors_parsers = typename parsers_from_arg_descriptors_tuple<ArgDescriptorsTuple>::type;
         using extra_value_parsers = typename parsers_from_extra_values_tuple<ExtraValueParsersTuple>::type;
         using value_parsers_pack = tuple_combine_t< arg_descriptors_parsers, extra_value_parsers >;
-        
-        using option_value_parser = alternatives_parser< value_parsers_pack >;
+        using option_value_parser = alternatives_parser_from_parsers_tuple_t<value_parsers_pack>;
         using value_t = typename option_value_parser::return_t;
-
         using option_assignment_parser = sequence_parser<identifier_token, option_value_parser>;
         using all_options_assignment_parser = loop_parser<option_assignment_parser>;
-
         using all_positional_parser = loop_parser<option_value_parser>;
-
-        using arg_parser = sequence_parser< all_options_assignment_parser, all_positional_parser >; //loop of options assignments, then positional arguments
+        using parser_impl_t = sequence_parser< all_options_assignment_parser, all_positional_parser >; //loop of options assignments, then positional arguments
     };
-
-
-
     template <
         TokenType TokTy,
         TupleType TokenizersTuple = std::tuple<identifier_tokenizer, path_tokenizer, integer_tokenizer, string_tokenizer>, 
@@ -181,14 +173,13 @@ namespace ArgParser {
         using qual_traits = arg_parser_traits<TokTy, TokenizersTuple, ArgDescriptorsTuple, ExtraValueParsersTuple>;
 
         ArgDescriptorsTuple m_descriptors;
-        
         typename qual_traits::all_positional_parser::return_t positional_arguments; //vector< variant< value_ts... > >;
 
         template <size_t I>
         void init_arg() {
             using arg_I_t = std::tuple_element_t<I, ArgDescriptorsTuple>;
             auto& arg_desc = std::get<I>(m_descriptors);
-            if constexpr (std::is_void_v<arg_I_t::_parser_return_t>) {
+            if constexpr (std::is_void_v<typename arg_I_t::_parser_return_t>) {
                 arg_desc.value = false;
             }
         }
@@ -198,22 +189,39 @@ namespace ArgParser {
             (init_arg<Is>(), ...);
         }
     public:
-        arg_parser(ArgDescriptorsTuple&& arg_descriptors, ExtraValueParsersTuple extra_value_parsers) 
+        explicit arg_parser(ArgDescriptorsTuple&& arg_descriptors, ExtraValueParsersTuple extra_value_parsers) 
         :   m_descriptors(std::forward<ArgDescriptorsTuple>(arg_descriptors)) 
         {
             init_args(std::make_index_sequence<std::tuple_size_v<ArgDescriptorsTuple>>{});
         }
 
+        explicit arg_parser(ArgDescriptorsTuple&& arg_descriptors) 
+        :   m_descriptors(std::forward<ArgDescriptorsTuple>(arg_descriptors)) 
+        {
+            init_args(std::make_index_sequence<std::tuple_size_v<ArgDescriptorsTuple>>{});
+        }
 
         void parse(token_stream<TokTy>& stream) {
+            using option_assignment_sequence_parse_t = typename qual_traits::option_assignment_parser::return_t;
             
-            auto res = arg_parser::parse(stream);
-            if (!res) {
-                typename qual_traits::all_options_assignment_parser::return_t option_assignment_vector;
-                typename qual_traits::all_positional_parser::return_t positional_values_vector;
+            auto res = qual_traits::parser_impl_t::parse(stream);
+            if (res) {
+                typename qual_traits::all_options_assignment_parser::return_t& option_assignment_vector = std::get<0>(*res);
+                typename qual_traits::all_positional_parser::return_t& positional_values_vector = std::get<1>(*res);
 
-                for (auto& assignment : option_assignment_vector) {
+                (volatile void*)&positional_values_vector;
 
+                for (option_assignment_sequence_parse_t const& assignment : option_assignment_vector) {
+                    auto const& [iden, value] = assignment;
+                    
+                    std::visit(overload{
+                        [](std::string_view const& name) {
+                            std::cout << "Found name identifier: " << name << "\n";
+                        },
+                        [](char const& tag) {
+                            std::cout << "Found tag identifier: " << tag << "\n";
+                        }
+                    }, iden);
                 }
             }
         }
