@@ -1,6 +1,5 @@
 #pragma once
 
-#define _ISOC11_SOURCE
 
 #include <array>
 #include <tuple>

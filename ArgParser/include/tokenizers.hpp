@@ -9,6 +9,8 @@
 #include <charconv>
 #include <filesystem>
 
+#include "template_magic.hpp"
+
 namespace ArgParser {
 
     using string_token = std::string_view;
@@ -16,6 +18,11 @@ namespace ArgParser {
     using int_token = std::variant<uint64_t, int64_t>;
     using path_token = std::filesystem::path;
     
+    template <class Tokenizer, class Tuple>
+    concept ValidTokenizer = requires(std::string_view s) {
+        { Tokenizer::tokenize(s) } -> std::same_as<std::optional<typename Tokenizer::return_t>>;
+        tuple_contains_v<typename Tokenizer::return_t, Tuple>;
+    };
 
     //example of a trivial tokenizer
     struct string_tokenizer {
@@ -127,4 +134,10 @@ namespace ArgParser {
             return res;
         }
     };
+
+
+
+
+
+    
 }

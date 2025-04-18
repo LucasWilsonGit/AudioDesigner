@@ -39,11 +39,6 @@ constexpr bool is_power_of_two(size_t n) {
 }
 */
 
-// Helper to create overloads
-template<class... Ts> struct overloads : Ts... { using Ts::operator()...; };
-// Deduction guide for overloads
-template<class... Ts> overloads(Ts...) -> overloads<Ts...>;
-
 template <auto *funcptr_inst>
 struct function_ptr_traits;
 

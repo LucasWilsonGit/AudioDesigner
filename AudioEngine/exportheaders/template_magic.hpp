@@ -1,3 +1,4 @@
+#pragma once
 #include <tuple>
 
 
@@ -12,9 +13,16 @@ struct is_specialization_of<T<Args...>, T> : std::true_type {};
 static_assert(is_specialization_of<std::tuple<int, float>, std::tuple>::value);
 
 template <class T>
-concept is_tuple = requires() {
-    is_specialization_of<T, std::tuple>::value;
-};
+struct is_tuple : std::false_type {};
+
+template <class... Ts>
+struct is_tuple<std::tuple<Ts...>> : std::true_type {};
+
+template <class T>
+constexpr bool is_tuple_v = is_tuple<T>::value;
+
+template <class T>
+concept TupleType = is_tuple<T>::value;
 
 template <class T, class U>
 struct tuple_contains;
@@ -98,16 +106,20 @@ using tuple_combine_t = typename tuple_combine<TupleFirst, TupleSecond>::type;
 
 
 //combine N tuples
-template <is_tuple... Tups>
+template <TupleType... Tups>
 struct tuple_combine_multi;
 
-template <is_tuple First>
+template <TupleType First>
 struct tuple_combine_multi<First> : std::type_identity<First> {};
 
-template <is_tuple First, is_tuple Second, is_tuple... Rest>
+template <TupleType First, TupleType Second, TupleType... Rest>
 struct tuple_combine_multi<First, Second, Rest...> {
     using type = typename tuple_combine_multi<tuple_combine_t<First, Second>, Rest...>::type;
 };
 
-template <is_tuple... Types>
+template <TupleType... Types>
 using tuple_combine_multi_t = typename tuple_combine_multi<Types...>::type;
+
+
+template <class... Ts> struct overloads : Ts... { using Ts::operator()...; };
+template <class... Ts> overloads(Ts...) -> overloads<Ts...>;

@@ -18,14 +18,9 @@
 
 namespace ArgParser {
     
-    template <class... Ts> struct overload : Ts... { using Ts::operator()...; };
-    template <class... Ts> overload(Ts...) -> overload<Ts...>;
     
-    template <class Tokenizer, class Tuple>
-    concept ValidTokenizer = requires(std::string_view s) {
-        { Tokenizer::tokenize(s) } -> std::same_as<std::optional<typename Tokenizer::return_t>>;
-        tuple_contains_v<typename Tokenizer::return_t, Tuple>;
-    };
+    
+    
 
     //tokens
 
@@ -45,17 +40,6 @@ namespace ArgParser {
 
 
     //arg parser
-    template <class T>
-    struct is_tuple : std::false_type {};
-
-    template <class... Ts>
-    struct is_tuple<std::tuple<Ts...>> : std::true_type {};
-
-    template <class T>
-    constexpr bool is_tuple_v = is_tuple<T>::value;
-
-    template <class T>
-    concept TupleType = is_tuple<T>::value;
 
     struct argument_identifier {
         std::string_view name;
@@ -214,7 +198,7 @@ namespace ArgParser {
                 for (option_assignment_sequence_parse_t const& assignment : option_assignment_vector) {
                     auto const& [iden, value] = assignment;
                     
-                    std::visit(overload{
+                    std::visit(overloads{
                         [](std::string_view const& name) {
                             std::cout << "Found name identifier: " << name << "\n";
                         },
