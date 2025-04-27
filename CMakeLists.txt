@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.25 FATAL_ERROR)
 
 set(CMAKE_SUPPRESS_REGENERATION FALSE)
 
+project(AUDIODESIGNER)
 include(${CMAKE_CURRENT_SOURCE_DIR}/build_utils.cmake)
 detect_msvc(MSVC)
 setup_global_compiler_options()
@@ -25,11 +26,11 @@ if ( CMAKE_COMPILER_IS_GNUCC )
 endif()
 
 if(MSVC)
-    add_compile_options(/external:anglebrackets /external:W0 /Wall /WX /wd4324 /wd5027 /wd4514 /wd4625 /wd4626 /wd4711 /wd4710 /wd5045 /std:c++20)  
+    add_compile_options(/external:anglebrackets /external:W0 /Wall /WX /wd4324 /wd5027 /wd4514 /wd4625 /wd4626 /wd4711 /wd4710 /wd5045 /wd4820 /std:c++20)  
 endif()
 
 
-project(AUDIODESIGNER)
+
 
 #wrapper for test registration which does nice cool things :)
 function(lib_add_test test_target test_source test_libs_indirect)

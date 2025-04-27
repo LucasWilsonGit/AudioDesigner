@@ -57,6 +57,47 @@ TEST(ParserTests, LoopParseSimple) {
     EXPECT_EQ(std::get<string_token>(stream.current_token()), "Bye");
 }
 
+TEST(ParserTests, LoopParseEmpty) {
+    auto stream = token_stream<token_wrapper_t<identifier_token, string_token>>();
+
+    using parser = loop_parser<identifier_token>;
+    std::optional<typename parser::return_t> result_vec = parser::parse(stream);
+
+    EXPECT_TRUE((bool)result_vec);
+    EXPECT_EQ(result_vec->size(), 0);
+}
+
+TEST(ParserTests, LoopParseMinimumPass) {
+    auto stream = token_stream<token_wrapper_t<identifier_token, string_token>>();
+    stream.emplace_back(identifier_token("Hello1"));
+    stream.emplace_back(identifier_token("Hello2"));
+    stream.emplace_back(identifier_token("Hello3"));
+    stream.emplace_back(string_token("Bye"));
+
+    using parser = loop_parser<identifier_token, 2>;
+    std::optional<typename parser::return_t> result_vec = parser::parse(stream);
+
+    EXPECT_TRUE((bool)result_vec);
+    EXPECT_EQ(result_vec->size(), 3);
+
+    EXPECT_EQ(std::get<string_token>(stream.current_token()), "Bye");
+}
+
+TEST(ParserTests, LoopParseMinimumFail) {
+    auto stream = token_stream<token_wrapper_t<identifier_token, string_token>>();
+    stream.emplace_back(identifier_token("Hello1"));
+    stream.emplace_back(identifier_token("Hello2"));
+    stream.emplace_back(identifier_token("Hello3"));
+    stream.emplace_back(string_token("Bye"));
+
+    using parser = loop_parser<identifier_token, 4>;
+    std::optional<typename parser::return_t> result_vec = parser::parse(stream);
+
+    EXPECT_FALSE((bool)result_vec);
+
+    EXPECT_EQ(std::get<std::string_view>(std::get<identifier_token>(stream.current_token())), "Hello1");
+}
+
 TEST(ParserTests, LoopParseSequence) {
     auto stream = make_token_stream();
     using parser = loop_parser<sequence_parser<identifier_token, string_token>>;

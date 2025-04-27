@@ -60,7 +60,7 @@ endfunction()
 
 
 set(WINDOWS_PLATFORMS "Windows" "MSYS" "CYGWIN")
-list(FIND WINDOWS_PLATFORMS "MSYS" audiodesigner_platform_index)
+list(FIND WINDOWS_PLATFORMS "${CMAKE_SYSTEM_NAME}" audiodesigner_platform_index)
 function(iswindows)
     if (NOT "${audiodesigner_platform_index}" STREQUAL "-1" )
         set(ISWINDOWS 1 PARENT_SCOPE)

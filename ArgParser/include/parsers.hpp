@@ -15,7 +15,7 @@ namespace ArgParser {
         
     template <class Parser>
     concept ParserType = requires(token_stream<token_wrapper_t<int>> s) {
-        { Parser::parse(s) };
+        { Parser::parse(s) } -> std::same_as<std::optional<typename Parser::return_t>>;
     };
 
     template <class ExpectedTokenType>
@@ -69,6 +69,32 @@ namespace ArgParser {
 
     template <class T>
     using select_step_parser_t = typename select_step_parser<T>::type;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     template <class... Steps>
     class sequence_parser {
@@ -124,23 +150,28 @@ namespace ArgParser {
         }
     };
 
-    template <class Step>
+    template <class Step, size_t Minimum=0, size_t Maximum=std::numeric_limits<size_t>::max()>
     class loop_parser {
         using step_parser_t = select_step_parser_t<Step>;
-        static constexpr size_t min_results = 0;
+        static constexpr size_t min_results = Minimum;
+        static constexpr size_t max_results = Maximum;
     public:
         using return_t = std::vector<typename select_step_parser_t<Step>::return_t>;
         
-
         template <TokenType T>
         static std::optional<return_t> parse(token_stream<T>& stream) {
             if (stream.is_empty())
-                return std::nullopt;
+                if constexpr (min_results > 0) {
+                    return std::nullopt;
+                }
+                else {
+                    return return_t();
+                }
             stream.begin_parse();
             return_t accum;
 
             std::optional<typename step_parser_t::return_t> res;
-            while ( ( res = step_parser_t::parse(stream) ).has_value() ) {
+            while ( ( res = step_parser_t::parse(stream) ).has_value() && sizeof(accum) < max_results ) {
                 accum.push_back(*std::move(res));
             }
 

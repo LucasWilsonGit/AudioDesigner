@@ -18,10 +18,9 @@ namespace ArgParser {
     using int_token = std::variant<uint64_t, int64_t>;
     using path_token = std::filesystem::path;
     
-    template <class Tokenizer, class Tuple>
+    template <class Tokenizer>
     concept ValidTokenizer = requires(std::string_view s) {
         { Tokenizer::tokenize(s) } -> std::same_as<std::optional<typename Tokenizer::return_t>>;
-        tuple_contains_v<typename Tokenizer::return_t, Tuple>;
     };
 
     //example of a trivial tokenizer
@@ -32,6 +31,7 @@ namespace ArgParser {
             return s;
         }
     };
+    static_assert(ValidTokenizer<string_tokenizer>, "Bad string_tokenizer impl");
 
     struct unsigned_integer_tokenizer {
         using return_t = uint64_t;
@@ -51,6 +51,7 @@ namespace ArgParser {
             return result;
         }
     };
+    static_assert(ValidTokenizer<unsigned_integer_tokenizer>, "Bad unsigned_integer_tokenizer impl");
 
     struct signed_integer_tokenizer {
         using return_t = int64_t;
@@ -73,6 +74,8 @@ namespace ArgParser {
             return std::nullopt;
         }
     };
+    static_assert(ValidTokenizer<signed_integer_tokenizer>, "Bad signed_integer_tokenizer impl");
+
 
     struct integer_tokenizer {
         using return_t = int_token;
@@ -86,6 +89,8 @@ namespace ArgParser {
 
         }
     };
+    static_assert(ValidTokenizer<integer_tokenizer>, "Bad integer_tokenizer impl");
+
 
     //identifier tokenizer
     struct identifier_tokenizer {
@@ -123,6 +128,8 @@ namespace ArgParser {
             return s.substr(2);
         }
     };
+    static_assert(ValidTokenizer<identifier_tokenizer>, "Bad identifier_tokenizer impl");
+
 
     struct path_tokenizer {
         using return_t = path_token;
@@ -134,6 +141,8 @@ namespace ArgParser {
             return res;
         }
     };
+    static_assert(ValidTokenizer<path_tokenizer>, "Bad path_tokenizer impl");
+
 
 
 

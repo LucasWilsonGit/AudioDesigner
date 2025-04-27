@@ -121,5 +121,5 @@ template <TupleType... Types>
 using tuple_combine_multi_t = typename tuple_combine_multi<Types...>::type;
 
 
-template <class... Ts> struct overloads : Ts... { using Ts::operator()...; };
+template <class... Ts> struct overloads : Ts... { using Ts::operator()...; overloads(Ts&&... ts) : Ts(std::forward<Ts>(ts))... {} };
 template <class... Ts> overloads(Ts...) -> overloads<Ts...>;
